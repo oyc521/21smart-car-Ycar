@@ -513,3 +513,49 @@ void refresh_grid_map(GameState* state, GridMap* map) {
 
     create_inflated_cost_map(map, state, 2.0f);
 }
+// 场地尺寸（米）
+// 场地尺寸（米）
+#define FIELD_WIDTH  3.2f
+#define FIELD_HEIGHT 2.4f
+
+// 坐标转换模式：0-标准（根据实际调试选择）
+#define COORD_MODE 0
+
+void img_to_motion(float wx_img, float wy_img, float* mx, float* my) {
+    // 图像坐标 (x向右, y向下) -> 运动坐标 (x向前, y向左)
+    #if COORD_MODE == 0
+        *mx = wy_img;                     // 图像y对应运动x
+        *my = FIELD_WIDTH - wx_img;       // 图像x镜像对应运动y
+    #elif COORD_MODE == 1
+        *mx = FIELD_WIDTH - wx_img;
+        *my = wy_img;
+    #elif COORD_MODE == 2
+        *mx = -wy_img;
+        *my = FIELD_WIDTH - wx_img;
+    #elif COORD_MODE == 3
+        *mx = wy_img;
+        *my = -(FIELD_WIDTH - wx_img);
+    #else
+        *mx = wy_img;
+        *my = FIELD_WIDTH - wx_img;
+    #endif
+}
+
+void motion_to_img(float mx, float my, float* wx_img, float* wy_img) {
+    #if COORD_MODE == 0
+        *wy_img = mx;
+        *wx_img = FIELD_WIDTH - my;
+    #elif COORD_MODE == 1
+        *wy_img = FIELD_WIDTH - mx;
+        *wx_img = my;
+    #elif COORD_MODE == 2
+        *wy_img = -mx;
+        *wx_img = FIELD_WIDTH - my;
+    #elif COORD_MODE == 3
+        *wy_img = mx;
+        *wx_img = FIELD_WIDTH + my;
+    #else
+        *wy_img = mx;
+        *wx_img = FIELD_WIDTH - my;
+    #endif
+}

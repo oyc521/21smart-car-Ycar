@@ -53,9 +53,11 @@ uint8_t Position_IsTargetReached(void);             // 检查是否到达目标位置
 // 运动控制函数
 void MoveToPosition(float x_cm, float y_cm, float max_speed);      // 移动到指定位置
 void RotateToAngle(float target_angle, float max_speed_dps);       // 旋转到指定角度
+void RotateToAngleIMU(float target_angle);
+void MoveToPositionIMU(float x_cm, float y_cm, float max_speed);
 void MoveStraight(float distance_cm, float speed_cmps);            // 直线移动
 void MoveLateral(float distance_cm, float speed_cmps);             // 横向移动
-
+void Position_Set(float x_m, float y_m, float yaw_rad);
 // 循迹函数（兼容旧接口）
 /*void TraceCenterLine(float speed);
 void TraceLeftLine(float speed, float angle);

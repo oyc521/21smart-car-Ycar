@@ -3,12 +3,19 @@
 #include "kinematics.h"
 #include <rtthread.h>
 #include <math.h>
+#include "zf_device_wireless_uart.h"
+
+// 目标轮速数组（m/s）
+static float target_wheel_speeds[3] = {0, 0, 0};
+
+// 轮子速度PID控制器
+static PIDParam_t wheel_pid[3];
 
 // 全局车体控制器
 CarController_t car_ctrl;
 
 // PID参数
-float pid_kp = 80.0f, pid_ki = 2.0f, pid_kd = 5.0f;
+float pid_kp = 0.0f, pid_ki = 0.0f, pid_kd = 0.0f;
 
 // 调试变量
 float dbg_enc1 = 0, dbg_enc2 = 0, dbg_enc3 = 0;
@@ -25,17 +32,14 @@ static void ApplySpeedLimits(float wheel_speeds[3]);
  */
 void MotorInit(void)
 {
-    // 初始化PWM
     pwm_init(MOTOR1_PWM_PIN, PWM_FREQUENCY, 0);
     pwm_init(MOTOR2_PWM_PIN, PWM_FREQUENCY, 0);
     pwm_init(MOTOR3_PWM_PIN, PWM_FREQUENCY, 0);
     
-    // 初始化方向引脚
-    gpio_init(MOTOR1_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(MOTOR2_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(MOTOR3_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    
-    printf("Motor Hardware Initialized\n");
+    // 初始化方向引脚（默认低电平）
+    gpio_init(MOTOR1_DIR_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(MOTOR2_DIR_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(MOTOR3_DIR_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
 }
 
 /**
@@ -43,7 +47,6 @@ void MotorInit(void)
  */
 void MotorController_Init(void)
 {
-    // 初始化每个电机的PID控制器
     for (int i = 0; i < 3; i++) {
         PIDInit(&car_ctrl.motors[i].pid, pid_kp, pid_ki, pid_kd, 100.0f, -100.0f);
         car_ctrl.motors[i].target_speed_mps = 0.0f;
@@ -56,10 +59,8 @@ void MotorController_Init(void)
         car_ctrl.motors[i].last_update_time = rt_tick_get();
     }
     
-    // 初始化运动学
     Kinematics_Init(&car_ctrl.kinematics);
     
-    // 初始化目标速度
     car_ctrl.target_vx = 0.0f;
     car_ctrl.target_vy = 0.0f;
     car_ctrl.target_omega = 0.0f;
@@ -68,7 +69,7 @@ void MotorController_Init(void)
     car_ctrl.current_vy = 0.0f;
     car_ctrl.current_omega = 0.0f;
     
-    printf("Motor Controller Initialized\n");
+    //rt_kprintf("Motor Controller Initialized\n");
 }
 
 /**
@@ -76,13 +77,16 @@ void MotorController_Init(void)
  */
 void CarController_Init(void)
 {
+    // 初始化每个轮子的PID控制器
+    for (int i = 0; i < 3; i++) {
+        PIDInit(&wheel_pid[i], INNER_KP, INNER_KI, INNER_KD, 100, -100);
+    }
+    
     // 初始化硬件
     MotorInit();
     
-    // 初始化控制器
+    // 初始化控制器状态
     MotorController_Init();
-    
-    printf("Car Controller Initialized\n");
 }
 
 /**
@@ -90,6 +94,7 @@ void CarController_Init(void)
  */
 void CarController_SetSpeed(float vx, float vy, float omega)
 {
+		//vx = -vx;
     car_ctrl.target_vx = vx;
     car_ctrl.target_vy = vy;
     car_ctrl.target_omega = omega;
@@ -98,9 +103,24 @@ void CarController_SetSpeed(float vx, float vy, float omega)
     Kinematics_Inverse(vx, vy, omega, wheel_speeds);
     Kinematics_LimitWheelSpeeds(wheel_speeds, MAX_WHEEL_SPEED_MPS);
     
-    for (int i = 0; i < 3; i++) {
-        car_ctrl.motors[i].target_speed_mps = wheel_speeds[i];
-    }
+    // 根据实际电机角度重新映射
+    car_ctrl.motors[0].target_speed_mps = wheel_speeds[2]; // 电机1 (240°) ← wheel_speeds[2]
+    car_ctrl.motors[1].target_speed_mps = wheel_speeds[1]; // 电机2 (120°) ← wheel_speeds[1]
+    car_ctrl.motors[2].target_speed_mps = wheel_speeds[0]; // 电机3 (0°)   ← wheel_speeds[0]
+
+    // 更新目标轮速数组（供PID使用）
+    target_wheel_speeds[0] = car_ctrl.motors[0].target_speed_mps;
+    target_wheel_speeds[1] = car_ctrl.motors[1].target_speed_mps;
+    target_wheel_speeds[2] = car_ctrl.motors[2].target_speed_mps;
+    
+    // 调试打印（乘以1000转为整数）
+    /*char buf[128];
+    rt_sprintf(buf, "wheel_speeds: %d %d %d\r\n",
+               (int)(wheel_speeds[0]*1000), (int)(wheel_speeds[1]*1000), (int)(wheel_speeds[2]*1000));
+    wireless_uart_send_string(buf);
+    rt_sprintf(buf, "target_wheel: %d %d %d\r\n",
+               (int)(target_wheel_speeds[0]*1000), (int)(target_wheel_speeds[1]*1000), (int)(target_wheel_speeds[2]*1000));
+    wireless_uart_send_string(buf);*/
 }
 
 /**
@@ -108,30 +128,25 @@ void CarController_SetSpeed(float vx, float vy, float omega)
  */
 void MotorController_SetSpeed(int motor_id, float speed_mps)
 {
-    if (motor_id < 0 || motor_id > 2) {
-        return;
-    }
-    
+    if (motor_id < 0 || motor_id > 2) return;
     car_ctrl.motors[motor_id].target_speed_mps = speed_mps;
 }
 
 /**
- * @brief 更新车体控制器
+ * @brief 更新车体控制器（内部）
  */
 static void UpdateMotorSpeeds(void)
 {
     float current_speeds[3];
-    EncoderGetSpeeds(current_speeds);  // 获取当前轮子线速度 (m/s)
+    EncoderGetSpeeds(current_speeds);
     
     for (int i = 0; i < 3; i++) {
         car_ctrl.motors[i].current_speed_mps = current_speeds[i];
-        // 低通滤波
         float alpha = 0.3f;
         car_ctrl.motors[i].speed_filtered = alpha * current_speeds[i] + 
                                            (1-alpha) * car_ctrl.motors[i].speed_filtered;
     }
     
-    // 通过正运动学计算车体速度
     float filtered[3] = {
         car_ctrl.motors[0].speed_filtered,
         car_ctrl.motors[1].speed_filtered,
@@ -148,131 +163,112 @@ static void UpdateMotorSpeeds(void)
  */
 void CarController_Stop(void)
 {
-    // 设置目标速度为0
     CarController_SetSpeed(0, 0, 0);
-    
-    // 等待速度降到接近0
-    float speed_threshold = 0.05f; // 5cm/s
+    float speed_threshold = 0.05f;
     while (fabsf(car_ctrl.current_vx) > speed_threshold ||
            fabsf(car_ctrl.current_vy) > speed_threshold ||
            fabsf(car_ctrl.current_omega) > speed_threshold * 2) {
         CarController_Update();
         rt_thread_mdelay(10);
     }
-    
-    printf("Car Stopped\n");
 }
 
 /**
- * @brief 设置电机PWM
+ * @brief 设置电机PWM（最终驱动函数）
  */
 static void SetMotorPWM(int motor_id, float pwm_duty)
 {
     uint16_t pwm_pin;
     uint8_t dir_pin;
-    
-    // 选择对应的引脚
+    uint8_t forward_level, backward_level;
+
+    // 根据电机ID选择引脚和方向电平
     switch (motor_id) {
         case 0:
             pwm_pin = MOTOR1_PWM_PIN;
             dir_pin = MOTOR1_DIR_PIN;
+            forward_level = MOTOR_BACKWARD;
+            backward_level = MOTOR_FORWARD;
             break;
         case 1:
             pwm_pin = MOTOR2_PWM_PIN;
             dir_pin = MOTOR2_DIR_PIN;
+						forward_level = MOTOR_FORWARD;
+            backward_level = MOTOR_BACKWARD;
             break;
         case 2:
             pwm_pin = MOTOR3_PWM_PIN;
             dir_pin = MOTOR3_DIR_PIN;
+            forward_level = MOTOR_FORWARD;
+            backward_level = MOTOR_BACKWARD;
             break;
         default:
             return;
     }
-    
-    // 确保PWM占空比在有效范围内
+
+    // 限幅
     float duty = pwm_duty;
     if (duty > 100.0f) duty = 100.0f;
     if (duty < -100.0f) duty = -100.0f;
-    
+
+    // 转换为PWM原始值（假设 PWM_DUTY_MAX=10000）
+    uint32_t duty_raw = (uint32_t)(fabsf(duty) * (PWM_DUTY_MAX / 100.0f));
+
     // 设置方向和PWM
     if (duty >= 0) {
-        gpio_set_level(dir_pin, MOTOR_FORWARD);
-        pwm_set_duty(pwm_pin, (uint16_t)duty);
+        gpio_set_level(dir_pin, forward_level);
     } else {
-        gpio_set_level(dir_pin, MOTOR_BACKWARD);
-        pwm_set_duty(pwm_pin, (uint16_t)(-duty));
+        gpio_set_level(dir_pin, backward_level);
     }
+    pwm_set_duty(pwm_pin, duty_raw);
+
+    // 调试打印：占空比乘以100显示（-10000 ~ 10000）
+    /*char buf[64];
+    rt_sprintf(buf, "SetPWM id=%d duty=%d\r\n", motor_id, (int)(duty*100));
+    wireless_uart_send_string(buf);*/
 }
+
 /**
- * @brief 更新电机速度
+ * @brief 更新电机速度（主控制循环调用）
  */
 void CarController_Update(void)
 {
-    // 更新编码器数据
-    EncoderUpdate();
-    
-    // 更新电机速度（包含正运动学计算）
-    UpdateMotorSpeeds();
-    
-    // PID控制并输出PWM
-    for (int i = 0; i < 3; i++) {
-        MotorController_t *motor = &car_ctrl.motors[i];
-        float pid_output = PID(&motor->pid, motor->speed_filtered, motor->target_speed_mps);
-        // 限制输出
-        if (pid_output > 100.0f) pid_output = 100.0f;
-        if (pid_output < -100.0f) pid_output = -100.0f;
-        SetMotorPWM(i, pid_output);
-        motor->pwm_duty = pid_output;
-    }
-    
-    // 调试输出等
-}
-/**
- * @brief 更新电机速度，备用方案
- */
-/*static void UpdateMotorSpeeds(void)
-{
-    // 获取当前编码器速度
-    float current_speeds[3];
-    EncoderGetSpeeds(current_speeds);
-    
-    // 更新每个电机的速度
-    for (int i = 0; i < 3; i++) {
-        MotorController_t *motor = &car_ctrl.motors[i];
-        
-        // 更新当前速度
-        motor->current_speed_mps = current_speeds[i];
-        
-        // 低通滤波
-        float alpha = 0.3f;
-        motor->speed_filtered = alpha * motor->current_speed_mps + 
-                               (1 - alpha) * motor->speed_filtered;
-    }
-}*/
+    float actual_wheel_speeds[3];
+    EncoderGetSpeeds(actual_wheel_speeds);
 
-/**
- * @brief 应用速度限制
- */
-static void ApplySpeedLimits(float wheel_speeds[3])
-{
-    // 使用运动学函数限制速度
-    Kinematics_LimitWheelSpeeds(wheel_speeds, MAX_MOTOR_SPEED_MPS);
+    char buf[128];
+    for (int i = 0; i < 3; i++) {
+        // 打印PID参数、目标速度、实际速度（乘以1000）
+        /*rt_sprintf(buf, "i=%d: kp=%d tar=%d fb=%d\r\n",
+                   i,
+                   (int)wheel_pid[i].kp,
+                   (int)(target_wheel_speeds[i] * 1000),
+                   (int)(actual_wheel_speeds[i] * 1000));
+        wireless_uart_send_string(buf);*/
+
+        // 计算PID输出
+        float output = PID(&wheel_pid[i], actual_wheel_speeds[i], target_wheel_speeds[i]);
+        if (output > 100.0f) output = 100.0f;
+        else if (output < -100.0f) output = -100.0f;
+
+        // 打印输出值（整数 -100~100）
+        /*rt_sprintf(buf, "out%d=%d\r\n", i, (int)output);
+        wireless_uart_send_string(buf);*/
+
+        // 直接调用PWM设置函数
+        SetMotorPWM(i, output);
+    }
 }
 
 /**
- * @brief 设置PID参数
+ * @brief 设置PID参数（单个电机，保留兼容）
  */
 void PIDController_SetParams(int motor_id, float kp, float ki, float kd)
 {
-    if (motor_id < 0 || motor_id > 2) {
-        return;
-    }
-    
+    if (motor_id < 0 || motor_id > 2) return;
     car_ctrl.motors[motor_id].pid.kp = kp;
     car_ctrl.motors[motor_id].pid.ki = ki;
     car_ctrl.motors[motor_id].pid.kd = kd;
-    
-    // 更新全局PID参数
     if (motor_id == 0) {
         pid_kp = kp;
         pid_ki = ki;
@@ -285,10 +281,7 @@ void PIDController_SetParams(int motor_id, float kp, float ki, float kd)
  */
 void PIDController_Reset(int motor_id)
 {
-    if (motor_id < 0 || motor_id > 2) {
-        return;
-    }
-    
+    if (motor_id < 0 || motor_id > 2) return;
     PID_Reset(&car_ctrl.motors[motor_id].pid);
 }
 
@@ -297,45 +290,31 @@ void PIDController_Reset(int motor_id)
  */
 void Test_Square(float side_length, float speed)
 {
-    printf("\n=== Square Test: side=%.2fm, speed=%.2fm/s ===\n", side_length, speed);
-    
+    //rt_kprintf("\n=== Square Test: side=%.2fm, speed=%.2fm/s ===\n", side_length, speed);
     for (int i = 0; i < 4; i++) {
-        // 前进
-        printf("Side %d: Forward %.2fm\n", i + 1, side_length);
+        //rt_kprintf("Side %d: Forward %.2fm\n", i + 1, side_length);
         CarController_SetSpeed(speed, 0, 0);
-        
-        // 计算前进时间
-        float move_time = side_length / speed * 1000; // 毫秒
-        
+        float move_time = side_length / speed * 1000;
         uint32_t start_time = rt_tick_get();
         while (rt_tick_get() - start_time < move_time) {
             CarController_Update();
             rt_thread_mdelay(10);
         }
-        
-        // 停止
         CarController_Stop();
         rt_thread_mdelay(500);
         
-        // 旋转90度
-        printf("Side %d: Rotate 90 degrees\n", i + 1);
-        
-        // 旋转90度所需时间
-        float rotate_speed = M_PI / 2.0f; // 90度/秒
+        //rt_kprintf("Side %d: Rotate 90 degrees\n", i + 1);
+        float rotate_speed = M_PI / 2.0f;
         CarController_SetSpeed(0, 0, rotate_speed);
-        
         start_time = rt_tick_get();
-        while (rt_tick_get() - start_time < 1000) { // 1秒旋转90度
+        while (rt_tick_get() - start_time < 1000) {
             CarController_Update();
             rt_thread_mdelay(10);
         }
-        
-        // 停止
         CarController_Stop();
         rt_thread_mdelay(500);
     }
-    
-    printf("=== Square Test Completed ===\n");
+    rt_kprintf("=== Square Test Completed ===\n");
 }
 
 /**
@@ -343,27 +322,18 @@ void Test_Square(float side_length, float speed)
  */
 void Test_Rotation(float angle_deg, float speed_deg_per_sec)
 {
-    printf("\n=== Rotation Test: angle=%.1f°, speed=%.1f°/s ===\n", 
-           angle_deg, speed_deg_per_sec);
-    
-    // 转换为弧度
+    //rt_kprintf("\n=== Rotation Test: angle=%.1f°, speed=%.1f°/s ===\n", angle_deg, speed_deg_per_sec);
     float angle_rad = angle_deg * M_PI / 180.0f;
     float speed_rad_per_sec = speed_deg_per_sec * M_PI / 180.0f;
-    
-    // 设置旋转
     CarController_SetSpeed(0, 0, speed_rad_per_sec);
-    
-    // 计算旋转时间
-    float rotate_time = fabsf(angle_rad / speed_rad_per_sec) * 1000; // 毫秒
-    
+    float rotate_time = fabsf(angle_rad / speed_rad_per_sec) * 1000;
     uint32_t start_time = rt_tick_get();
     while (rt_tick_get() - start_time < rotate_time) {
         CarController_Update();
         rt_thread_mdelay(10);
     }
-    
     CarController_Stop();
-    printf("=== Rotation Test Completed ===\n");
+    //rt_kprintf("=== Rotation Test Completed ===\n");
 }
 
 /**
@@ -371,59 +341,37 @@ void Test_Rotation(float angle_deg, float speed_deg_per_sec)
  */
 void Test_Movement(float vx, float vy, float omega, float duration_ms)
 {
-    printf("\n=== Movement Test: vx=%.2f, vy=%.2f, ω=%.2f, time=%.0fms ===\n",
-           vx, vy, omega, duration_ms);
-    
+    //rt_kprintf("\n=== Movement Test: vx=%.2f, vy=%.2f, ω=%.2f, time=%.0fms ===\n", vx, vy, omega, duration_ms);
     CarController_SetSpeed(vx, vy, omega);
-    
     uint32_t start_time = rt_tick_get();
     while (rt_tick_get() - start_time < duration_ms) {
         CarController_Update();
         rt_thread_mdelay(10);
     }
-    
     CarController_Stop();
-    printf("=== Movement Test Completed ===\n");
+    //rt_kprintf("=== Movement Test Completed ===\n");
 }
 
 /**
- * @brief 兼容旧接口：设置车体速度
+ * @brief 更新所有轮子的PID参数（用于动态调参）
  */
-/*void CarSpeedSet(float speed_x, float speed_y, float speed_z)
-{
-    // 假设传入的速度是电机速度（编码器单位）
-    // 需要转换为车体速度
-    
-    // 这里简单地将传入的参数视为电机速度
-    // 实际使用时需要根据实际情况调整
-    
-    printf("Warning: Using old CarSpeedSet interface\n");
-    
-    // 临时设置电机速度
-    for (int i = 0; i < 3; i++) {
-        car_ctrl.motors[i].target_speed_mps = speed_x / 100.0f; // 粗略转换
-    }
-}*/
-
-/**
- * @brief 兼容旧接口：停止
- */
-/*void CarStop(void)
-{
-    CarController_Stop();
-}*/
-
-/**
- * @brief 兼容旧接口：PID初始化
- */
-/*void pid_init(float kp, float ki, float kd)
+void MotorPID_SetGlobalParams(float kp, float ki, float kd)
 {
     pid_kp = kp;
     pid_ki = ki;
     pid_kd = kd;
-    
-    // 更新所有电机的PID参数
     for (int i = 0; i < 3; i++) {
-        PIDController_SetParams(i, kp, ki, kd);
+        wheel_pid[i].kp = kp;
+        wheel_pid[i].ki = ki;
+        wheel_pid[i].kd = kd;
+        PID_Reset(&wheel_pid[i]);
     }
-}*/
+}
+
+/**
+ * @brief 外部接口：直接设置PWM
+ */
+void Motor_SetPWM(int motor_id, float duty)
+{
+    SetMotorPWM(motor_id, duty);
+}

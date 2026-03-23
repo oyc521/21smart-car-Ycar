@@ -45,8 +45,8 @@ void Kinematics_Forward(const float wheel_speeds[3], float *vx, float *vy, float
     float v2 = wheel_speeds[2];
     
     // 根据最小二乘推导的公式
-    *vx = ( -sin_0 * v0 - sin_120 * v1 - sin_240 * v2 ) / 3.0f;
-    *vy = ( cos_0 * v0 + cos_120 * v1 + cos_240 * v2 ) / 3.0f;
+    *vx = ( -sin_0 * v0 - sin_120 * v1 - sin_240 * v2 ) / 1.5f;
+    *vy = ( cos_0 * v0 + cos_120 * v1 + cos_240 * v2 ) / 1.5f;
     *omega = ( v0 + v1 + v2 ) / (3.0f * CHASSIS_RADIUS);
     
     // 展开后便于理解：

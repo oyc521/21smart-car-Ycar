@@ -9,18 +9,25 @@
 #define MAX_MOTOR_SPEED        500.0f    // 最大电机速度（编码器单位）
 #define MAX_MOTOR_SPEED_MPS    2.0f      // 最大电机速度（m/s）
 #define PWM_FREQUENCY          17000     // PWM频率 17kHz
-
+//#define PWM_FREQUENCY          4000		//仅测试用
 // 电机引脚定义（根据实际接线修改）
-#define MOTOR1_PWM_PIN         (PWM2_MODULE1_CHA_C8)
-#define MOTOR1_DIR_PIN         C9
-#define MOTOR2_PWM_PIN         (PWM2_MODULE0_CHA_C6)
-#define MOTOR2_DIR_PIN         C7
+#define MOTOR1_PWM_PIN         (PWM2_MODULE1_CHB_C9)
+#define MOTOR1_DIR_PIN         C8
+#define MOTOR2_PWM_PIN         (PWM2_MODULE2_CHB_C11)
+#define MOTOR2_DIR_PIN         C10
 #define MOTOR3_PWM_PIN         (PWM2_MODULE3_CHB_D3)
 #define MOTOR3_DIR_PIN         D2
 
 // 电机方向定义
 #define MOTOR_FORWARD          1
 #define MOTOR_BACKWARD         0
+// 每个电机的正转电平（1表示高电平正转，0表示低电平正转）
+
+//extern const uint8_t motor_forward_level[3];
+// 内环速度PID参数
+#define INNER_KP    30.0f
+#define INNER_KI    8.0f
+#define INNER_KD    4.0f
 
 // 电机控制器结构体
 typedef struct {
@@ -46,11 +53,13 @@ typedef struct {
 // 全局变量声明
 extern CarController_t car_ctrl;
 extern float pid_kp, pid_ki, pid_kd;
+void Motor_SetPWM(int motor_id, float duty);
 
 // 调试变量
 extern float dbg_enc1, dbg_enc2, dbg_enc3;
 extern float dbg_tar1, dbg_tar2, dbg_tar3;
 extern uint8_t dbg_new;
+void MotorPID_SetGlobalParams(float kp, float ki, float kd);
 
 // 函数声明
 void MotorInit(void);                           // 电机初始化

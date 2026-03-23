@@ -101,8 +101,8 @@ static void parse_complete_frame(const uint8_t *data, uint32_t len)
                           (const float*)dests_ptr, num_dests,
                           (const float*)bombs_ptr, num_bombs);
 
-    printf("Map updated: walls=%d, boxes=%d, dests=%d, bombs=%d\n",
-           num_walls, num_boxes, num_dests, num_bombs);
+    //printf("Map updated: walls=%d, boxes=%d, dests=%d, bombs=%d\n",
+           //num_walls, num_boxes, num_dests, num_bombs);
 }
 
 /* 自动规划触发函数（选择最近箱子） */
@@ -125,7 +125,30 @@ static void trigger_planning(void)
         if (HybridController_PlanPathToBox(&g_ctrl, position.x_m, position.y_m, nearest)) {
             printf("Planning to box %d\n", nearest);
         } else {
-            printf("Plan to box %d failed\n", nearest);
+            // 路径规划失败，尝试炸墙
+            printf("A* to box %d failed, trying bomb\n", nearest);
+            float bomb_target_x, bomb_target_y;
+            int best_wall = select_best_wall_to_destroy(&g_game_state, &g_grid_map,
+                                                        (int)(position.x_m/RESOLUTION), (int)(position.y_m/RESOLUTION),
+                                                        nearest,
+                                                        &bomb_target_x, &bomb_target_y);
+            if (best_wall >= 0) {
+                int bomb_id = -1;
+                for (int i = 0; i < g_game_state.num_bombs; i++) {
+                    if (g_game_state.bombs[i].active) {
+                        bomb_id = i;
+                        break;
+                    }
+                }
+                if (bomb_id >= 0) {
+                    HybridController_PlanBombPath(&g_ctrl, position.x_m, position.y_m,
+                                                  bomb_id, bomb_target_x, bomb_target_y);
+                } else {
+                    printf("No active bomb\n");
+                }
+            } else {
+                printf("No suitable wall to destroy\n");
+            }
         }
     } else {
         printf("No available box\n");

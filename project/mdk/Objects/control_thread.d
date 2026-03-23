@@ -1,21 +1,14 @@
 ./objects/control_thread.o: ..\code\control_thread.c \
-  ..\..\libraries\rt-thread\include\rtthread.h \
-  ..\..\libraries\rt-thread\bsp\imxrt1064-nxp-evk\rtconfig.h \
-  ..\..\libraries\rt-thread\include\rtdebug.h \
-  ..\..\libraries\rt-thread\include\rtdef.h \
-  ..\..\libraries\rt-thread\include\rtservice.h \
-  ..\..\libraries\rt-thread\include\rtm.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdarg.h \
+  ..\code\hybrid_controller.h ..\code\planner.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdint.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stddef.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
-  ..\..\libraries\rt-thread\components\finsh\finsh.h ..\code\position.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdbool.h ..\code\motor.h \
   ..\..\libraries\zf_common\zf_common_headfile.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
   ..\..\libraries\sdk\drives\fsl_common.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\assert.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdbool.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stddef.h \
   ..\..\libraries\sdk\deceive\fsl_device_registers.h \
   ..\..\libraries\sdk\deceive\MIMXRT1064.h \
   ..\..\libraries\sdk\CMSIS\Include\core_cm7.h \
@@ -30,6 +23,7 @@
   ..\..\libraries\sdk\drives\fsl_common_arm.h \
   ..\..\libraries\sdk\drives\fsl_clock.h \
   ..\..\libraries\sdk\utilities\debug_console\fsl_debug_console.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdarg.h \
   ..\..\libraries\sdk\drives\fsl_iomuxc.h \
   ..\..\libraries\sdk\drives\fsl_cache.h \
   ..\..\libraries\sdk\drives\fsl_csi.h \
@@ -111,7 +105,13 @@
   ..\..\libraries\sdk\drives\fsl_usdhc.h \
   ..\..\libraries\components\sdmmc\common\fsl_sdmmc_spec.h \
   ..\..\libraries\components\sdmmc\sdmmc_config.h \
-  ..\..\libraries\sdk\board\clock_config.h ..\code\pid.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h ..\code\filter.h \
-  ..\code\motor.h ..\code\kinematics.h ..\code\hybrid_controller.h \
-  ..\code\planner.h ..\code\encoder.h
+  ..\..\libraries\sdk\board\clock_config.h \
+  ..\..\libraries\rt-thread\include\rtthread.h \
+  ..\..\libraries\rt-thread\bsp\imxrt1064-nxp-evk\rtconfig.h \
+  ..\..\libraries\rt-thread\include\rtdebug.h \
+  ..\..\libraries\rt-thread\include\rtdef.h \
+  ..\..\libraries\rt-thread\include\rtservice.h \
+  ..\..\libraries\rt-thread\include\rtm.h \
+  ..\..\libraries\rt-thread\components\finsh\finsh.h ..\code\pid.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h ..\code\kinematics.h \
+  ..\code\position.h ..\code\filter.h

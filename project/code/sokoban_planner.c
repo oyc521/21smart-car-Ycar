@@ -1,10 +1,11 @@
 #include "planner.h"
 #include <math.h>
 #include <string.h>
-#include <stdlib.h>   // 添加此行
+#include <stdlib.h>   
 #include <stdio.h>
-
-// ----- RDP 简化相关函数 -----
+#include "zf_device_wireless_uart.h"
+#include <rtthread.h>
+// ----- 辅助：RDP 简化和 A* 连接函数 -----
 static float point_line_distance(float x0, float y0, float x1, float y1, float x2, float y2) {
     float vx = x1 - x0, vy = y1 - y0;
     float wx = x2 - x0, wy = y2 - y0;
@@ -109,7 +110,7 @@ static int connect_with_astar_and_simplify(GridMap* grid_map, int* coarse_r, int
             continue;
         }
 
-        static int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
+        int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
         int plen = astar_plan_path(grid_map, sx, sy, gx, gy, path_x, path_y, MAX_PATH_POINTS, &params);
         if (plen <= 0) {
             float wx = (cc0 + 0.5f) * CELL_SIZE;
@@ -143,18 +144,15 @@ static int connect_with_astar_and_simplify(GridMap* grid_map, int* coarse_r, int
     return out_n;
 }
 
-// 将动作序列转换为世界坐标路径
-static int actions_to_world_path(GameState* state, int box_id, float start_car_x, float start_car_y,
-                                 const int* actions, int action_count,
-                                 float* out_x, float* out_y, int max_len) {
+int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
+                          float start_car_x, float start_car_y,
+                          const int* actions, int action_count,
+                          float* out_x, float* out_y, int max_len) {
     Box* box = &state->boxes[box_id];
-    float box_x = box->x, box_y = box->y;
-
     int pr = (int)(start_car_y / CELL_SIZE);
     int pc = (int)(start_car_x / CELL_SIZE);
-    int br = (int)(box_y / CELL_SIZE);
-    int bc = (int)(box_x / CELL_SIZE);
-
+    int br = (int)(box->y / CELL_SIZE);
+    int bc = (int)(box->x / CELL_SIZE);
     const int dr4[4] = {-1, 0, 1, 0};
     const int dc4[4] = {0, 1, 0, -1};
 
@@ -164,90 +162,158 @@ static int actions_to_world_path(GameState* state, int box_id, float start_car_x
 
     #define ADD_POINT(x, y) do { \
         if (point_count < MAX_ACT_POINTS && (point_count == 0 || \
-            fabsf((x) - points_x[point_count-1]) > 1e-2f || \
-            fabsf((y) - points_y[point_count-1]) > 1e-2f)) { \
+            (int)((x)*1000) != (int)(points_x[point_count-1]*1000) || \
+            (int)((y)*1000) != (int)(points_y[point_count-1]*1000))) { \
             points_x[point_count] = (x); \
             points_y[point_count] = (y); \
             point_count++; \
         } \
     } while(0)
 
+    // 添加起点
     ADD_POINT(start_car_x, start_car_y);
 
+    AStarParams params = {5000, 2.0f};
     for (int i = 0; i < action_count; i++) {
-        int act = actions[i];
-        if (act >= 4) {
-            int d = act - 4;
-            int old_br = br, old_bc = bc;
-            float new_px = (old_bc + 0.5f) * CELL_SIZE;
-            float new_py = (old_br + 0.5f) * CELL_SIZE;
-            if (point_count == 0 || fabsf(new_px - points_x[point_count-1]) > 1e-6f || fabsf(new_py - points_y[point_count-1]) > 1e-6f) {
-                if (point_count < MAX_ACT_POINTS) {
-                    points_x[point_count] = new_px;
-                    points_y[point_count] = new_py;
-                    point_count++;
-                }
-            }
-            br = br + dr4[d];
-            bc = bc + dc4[d];
-            pr = old_br;
-            pc = old_bc;
-        } else {
-            int d = act;
-            pr += dr4[d];
-            pc += dc4[d];
-            float new_px = (pc + 0.5f) * CELL_SIZE;
-            float new_py = (pr + 0.5f) * CELL_SIZE;
-            if (point_count == 0 || fabsf(new_px - points_x[point_count-1]) > 1e-6f || fabsf(new_py - points_y[point_count-1]) > 1e-6f) {
-                if (point_count < MAX_ACT_POINTS) {
-                    points_x[point_count] = new_px;
-                    points_y[point_count] = new_py;
-                    point_count++;
-                }
-            }
+        int d = actions[i] - 4;
+        if (d < 0 || d >= 4) {
+            char dbg[64];
+            rt_sprintf(dbg, "Invalid action %d\n", actions[i]);
+            wireless_uart_send_string(dbg);
+            continue;
         }
+
+        int push_r = br - dr4[d];
+        int push_c = bc - dc4[d];
+        // 打印动作信息
+        char dbg[64];
+        rt_sprintf(dbg, "Action %d: d=%d, push(%d,%d)\n", i, d, push_r, push_c);
+        wireless_uart_send_string(dbg);
+
+        int sx = pc * 4 + 2;
+        int sy = pr * 4 + 2;
+        int gx = push_c * 4 + 2;
+        int gy = push_r * 4 + 2;
+        rt_sprintf(dbg, "  A* from (%d,%d) to (%d,%d)\n", sx, sy, gx, gy);
+        wireless_uart_send_string(dbg);
+
+        int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
+        int plen = astar_plan_path(grid_map, sx, sy, gx, gy, path_x, path_y, MAX_PATH_POINTS, &params);
+        rt_sprintf(dbg, "  A* plen=%d\n", plen);
+        wireless_uart_send_string(dbg);
+        if (plen > 0) {
+            for (int k = 0; k < plen; k++) {
+                float wx, wy;
+                grid_to_world(path_x[k], path_y[k], &wx, &wy);
+                ADD_POINT(wx, wy);
+            }
+        } else {
+            // A* 失败，直接添加推动位置
+            ADD_POINT((push_c + 0.5f) * CELL_SIZE, (push_r + 0.5f) * CELL_SIZE);
+        }
+
+        // 更新箱子位置
+        int old_br = br, old_bc = bc;
+        br += dr4[d];
+        bc += dc4[d];
+        pr = old_br;
+        pc = old_bc;
+        float new_car_x = (pc + 0.5f) * CELL_SIZE;
+        float new_car_y = (pr + 0.5f) * CELL_SIZE;
+        ADD_POINT(new_car_x, new_car_y);
     }
     #undef ADD_POINT
 
-    static float comp_x[MAX_ACT_POINTS];
-    static float comp_y[MAX_ACT_POINTS];
-    int comp_count = 0;
-    if (point_count > 0) {
-        comp_x[comp_count] = points_x[0];
-        comp_y[comp_count] = points_y[0];
-        comp_count++;
-    }
-    const float EPS = 1e-4f;
-    for (int i = 1; i < point_count - 1; i++) {
-        float ax = points_x[i-1], ay = points_y[i-1];
-        float bx = points_x[i],   by = points_y[i];
-        float cx = points_x[i+1], cy = points_y[i+1];
-        float v1x = bx - ax, v1y = by - ay;
-        float v2x = cx - bx, v2y = cy - by;
-        float cross = fabsf(v1x * v2y - v1y * v2x);
-        if (cross > EPS) {
-            if (comp_count < MAX_ACT_POINTS) {
-                comp_x[comp_count] = bx;
-                comp_y[comp_count] = by;
-                comp_count++;
-            }
-        }
-    }
-    if (point_count > 1 && comp_count < MAX_ACT_POINTS) {
-        comp_x[comp_count] = points_x[point_count-1];
-        comp_y[comp_count] = points_y[point_count-1];
-        comp_count++;
-    }
+    // 打印总点数
+    char dbg[64];
+    rt_sprintf(dbg, "Total points: %d\n", point_count);
+    wireless_uart_send_string(dbg);
 
-    int n = (comp_count < max_len) ? comp_count : max_len;
+    int n = (point_count < max_len) ? point_count : max_len;
     for (int i = 0; i < n; i++) {
-        out_x[i] = comp_x[i];
-        out_y[i] = comp_y[i];
+        out_x[i] = points_x[i];
+        out_y[i] = points_y[i];
     }
     return n;
 }
 
-// 细网格8方向BFS，检查起点(sx,sy)到终点(gx,gy)是否可达
+int sokoban_plan_for_box(GameState* state, GridMap* grid_map, int box_id,
+                         float car_x, float car_y,
+                         float* out_path_x, float* out_path_y, int max_path_len) {
+    if (box_id < 0 || box_id >= state->num_boxes) return -1;
+    Box* box = &state->boxes[box_id];
+    if (box->dest_id < 0) return -1;
+
+    int actions[1000];
+    int action_count = light_sokoban_plan(state, grid_map, box_id, car_x, car_y, actions, 1000);
+    if (action_count <= 0) return -1;
+
+    // 转换为推动动作编码
+    for (int i = 0; i < action_count; i++) {
+        actions[i] += 4;
+    }
+
+    float tmp_x[MAX_PATH_POINTS], tmp_y[MAX_PATH_POINTS];
+    int tmp_n = actions_to_world_path(state, grid_map, box_id, car_x, car_y,
+                                       actions, action_count,
+                                       tmp_x, tmp_y, MAX_PATH_POINTS);
+    if (tmp_n <= 0) return -1;
+
+    // 直接输出原始路径点，不进行任何简化
+    int n = (tmp_n < max_path_len) ? tmp_n : max_path_len;
+    for (int i = 0; i < n; i++) {
+        out_path_x[i] = tmp_x[i];
+        out_path_y[i] = tmp_y[i];
+    }
+    return n;
+}
+void build_single_box_submap(GameState* state, GridMap* grid_map,
+                             int box_id, CoarseMap* submap) {
+    memset(submap->cells, 0, sizeof(submap->cells));
+
+    for (int r = 0; r < MAP_ROWS; r++) {
+        for (int c = 0; c < MAP_COLS; c++) {
+            int base_x = c * 4;
+            int base_y = r * 4;
+            int has_wall = 0;
+            for (int dy = 0; dy < 4; dy++) {
+                for (int dx = 0; dx < 4; dx++) {
+                    int fx = base_x + dx;
+                    int fy = base_y + dy;
+                    if (grid_map->occupancy[fy][fx] == OCC_WALL) {
+                        has_wall = 1; break;
+                    }
+                }
+                if (has_wall) break;
+            }
+            if (has_wall) submap->cells[r][c] = 1;
+        }
+    }
+
+    for (int i = 0; i < state->num_boxes; i++) {
+        if (i == box_id) continue;
+        if (state->boxes[i].state == 0) {
+            int br = (int)(state->boxes[i].y / CELL_SIZE);
+            int bc = (int)(state->boxes[i].x / CELL_SIZE);
+            if (br >= 0 && br < MAP_ROWS && bc >= 0 && bc < MAP_COLS)
+                submap->cells[br][bc] = 1;
+        }
+    }
+
+    int br = (int)(state->boxes[box_id].y / CELL_SIZE);
+    int bc = (int)(state->boxes[box_id].x / CELL_SIZE);
+    if (br >= 0 && br < MAP_ROWS && bc >= 0 && bc < MAP_COLS) submap->cells[br][bc] = 2;
+
+    int dest_id = state->boxes[box_id].dest_id;
+    if (dest_id >= 0 && dest_id < state->num_destinations) {
+        int dr = (int)(state->destinations[dest_id].y / CELL_SIZE);
+        int dc = (int)(state->destinations[dest_id].x / CELL_SIZE);
+        if (dr >= 0 && dr < MAP_ROWS && dc >= 0 && dc < MAP_COLS) submap->cells[dr][dc] = 3;
+    }
+}
+
+// ================= 轻量级推箱子规划器（分解法） =================
+
 static int can_reach_fine(GridMap* map, int sx, int sy, int gx, int gy) {
     if (sx == gx && sy == gy) return 1;
     if (map->occupancy[sy][sx] == OCC_WALL || map->occupancy[sy][sx] == OCC_BOX ||
@@ -288,7 +354,6 @@ static int can_reach_fine(GridMap* map, int sx, int sy, int gx, int gy) {
     return 0;
 }
 
-// 简单角落死锁检测
 static int is_deadlock_simple(int br, int bc, int goal_br, int goal_bc,
                               const uint8_t obstacle[MAP_ROWS][MAP_COLS]) {
     if (br == goal_br && bc == goal_bc) return 0;
@@ -309,13 +374,23 @@ static int is_deadlock_simple(int br, int bc, int goal_br, int goal_bc,
     return 0;
 }
 
-// 轻量级推箱子规划器（分解法）
 int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                        float car_x, float car_y,
                        int* out_actions, int max_actions) {
-    if (box_id < 0 || box_id >= state->num_boxes) return -1;
+    char buf[128];
+    rt_sprintf(buf, "light_sokoban_plan: entry, box_id=%d, car=(%d,%d)\r\n",
+               box_id, (int)(car_x*1000), (int)(car_y*1000));
+    wireless_uart_send_string(buf);
+
+    if (box_id < 0 || box_id >= state->num_boxes) {
+        wireless_uart_send_string("light_sokoban_plan: invalid box_id\r\n");
+        return -1;
+    }
     Box* box = &state->boxes[box_id];
-    if (box->dest_id < 0) return -1;
+    if (box->dest_id < 0) {
+        wireless_uart_send_string("light_sokoban_plan: box dest_id invalid\r\n");
+        return -1;
+    }
 
     int br = (int)(box->y / CELL_SIZE);
     int bc = (int)(box->x / CELL_SIZE);
@@ -325,8 +400,12 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
     int goal_br = (int)(dest->y / CELL_SIZE);
     int goal_bc = (int)(dest->x / CELL_SIZE);
 
+    rt_sprintf(buf, "light_sokoban_plan: box grid(%d,%d), car grid(%d,%d), goal(%d,%d)\r\n",
+               br, bc, pr, pc, goal_br, goal_bc);
+    wireless_uart_send_string(buf);
+
+    // 构建障碍物地图
     uint8_t obstacle[MAP_ROWS][MAP_COLS] = {{0}};
-    // 墙体
     for (int r = 0; r < MAP_ROWS; r++) {
         for (int c = 0; c < MAP_COLS; c++) {
             int base_x = c * 4;
@@ -342,7 +421,7 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
             next_cell:;
         }
     }
-    // 其他未推箱子
+    // 其他箱子
     for (int i = 0; i < state->num_boxes; i++) {
         if (i == box_id) continue;
         if (state->boxes[i].state == 0) {
@@ -352,6 +431,7 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                 obstacle[or_][oc] = 1;
         }
     }
+    wireless_uart_send_string("light_sokoban_plan: obstacle map built\r\n");
 
     const int dr[4] = {-1, 0, 1, 0};
     const int dc[4] = {0, 1, 0, -1};
@@ -415,12 +495,15 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                 queue[tail].pc = cur.bc;
                 queue[tail].pushes = new_pushes;
                 queue[tail].parent = head;
-                queue[tail].action = 4 + d;   // 推动动作编码为 4~7
+                queue[tail].action = 4 + d;
                 tail++;
             }
         }
         head++;
     }
+
+    rt_sprintf(buf, "light_sokoban_plan: BFS finished, found_idx=%d, tail=%d\r\n", found_idx, tail);
+    wireless_uart_send_string(buf);
 
     if (found_idx == -1) return -1;
 
@@ -441,99 +524,7 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
 
     int n = (act_cnt < max_actions) ? act_cnt : max_actions;
     for (int i = 0; i < n; i++) out_actions[i] = actions[i];
-    // printf("Light sokoban planner: queue max used %d/200\n", tail);
+    rt_sprintf(buf, "light_sokoban_plan: success, actions=%d\r\n", n);
+    wireless_uart_send_string(buf);
     return n;
-}
-
-// 构建单箱子子地图
-void build_single_box_submap(GameState* state, GridMap* grid_map,
-                             int box_id, CoarseMap* submap) {
-    memset(submap->cells, 0, sizeof(submap->cells));
-    // 墙体
-    for (int r = 0; r < MAP_ROWS; r++) {
-        for (int c = 0; c < MAP_COLS; c++) {
-            int base_x = c * 4;
-            int base_y = r * 4;
-            int has_wall = 0;
-            for (int dy = 0; dy < 4; dy++) {
-                for (int dx = 0; dx < 4; dx++) {
-                    if (grid_map->occupancy[base_y + dy][base_x + dx] == OCC_WALL) {
-                        has_wall = 1;
-                        break;
-                    }
-                }
-                if (has_wall) break;
-            }
-            if (has_wall) submap->cells[r][c] = 1;
-        }
-    }
-    // 其他箱子
-    for (int i = 0; i < state->num_boxes; i++) {
-        if (i == box_id) continue;
-        if (state->boxes[i].state == 0) {
-            int br = (int)(state->boxes[i].y / CELL_SIZE);
-            int bc = (int)(state->boxes[i].x / CELL_SIZE);
-            if (br >= 0 && br < MAP_ROWS && bc >= 0 && bc < MAP_COLS)
-                submap->cells[br][bc] = 1;
-        }
-    }
-    // 当前箱子
-    int br = (int)(state->boxes[box_id].y / CELL_SIZE);
-    int bc = (int)(state->boxes[box_id].x / CELL_SIZE);
-    if (br >= 0 && br < MAP_ROWS && bc >= 0 && bc < MAP_COLS)
-        submap->cells[br][bc] = 2;
-    // 目标
-    int dest_id = state->boxes[box_id].dest_id;
-    if (dest_id >= 0 && dest_id < state->num_destinations) {
-        int dr = (int)(state->destinations[dest_id].y / CELL_SIZE);
-        int dc = (int)(state->destinations[dest_id].x / CELL_SIZE);
-        if (dr >= 0 && dr < MAP_ROWS && dc >= 0 && dc < MAP_COLS)
-            submap->cells[dr][dc] = 3;
-    }
-}
-
-// 顺序规划（简化）
-int plan_all_boxes_sequentially(GameState* state, GridMap* grid_map,
-                                float car_x, float car_y,
-                                float* out_paths[MAX_BOXES], int out_lens[MAX_BOXES],
-                                int max_path_len) {
-    return 0; // 可根据需要实现
-}
-
-// ========== 新增：sokoban_plan_for_box 实现 ==========
-int sokoban_plan_for_box(GameState* state, GridMap* grid_map, int box_id,
-                         float car_x, float car_y,
-                         float* out_path_x, float* out_path_y, int max_path_len) {
-    if (box_id < 0 || box_id >= state->num_boxes) return -1;
-    Box* box = &state->boxes[box_id];
-    if (box->dest_id < 0) return -1;
-
-    int actions[1000];
-    int action_count = light_sokoban_plan(state, grid_map, box_id, car_x, car_y, actions, 1000);
-    if (action_count <= 0) return -1;
-
-    static float tmp_x[MAX_PATH_POINTS], tmp_y[MAX_PATH_POINTS];
-    int tmp_n = actions_to_world_path(state, box_id, car_x, car_y,
-                                       actions, action_count,
-                                       tmp_x, tmp_y, MAX_PATH_POINTS);
-    if (tmp_n <= 0) return -1;
-
-    static int coarse_r[MAX_PATH_POINTS], coarse_c[MAX_PATH_POINTS];
-    int coarse_n = 0;
-    for (int i = 0; i < tmp_n; i++) {
-        int r = (int)(tmp_y[i] / CELL_SIZE);
-        int c = (int)(tmp_x[i] / CELL_SIZE);
-        if (coarse_n == 0 || coarse_r[coarse_n-1] != r || coarse_c[coarse_n-1] != c) {
-            if (coarse_n < MAX_PATH_POINTS) {
-                coarse_r[coarse_n] = r;
-                coarse_c[coarse_n] = c;
-                coarse_n++;
-            } else break;
-        }
-    }
-
-    float rdp_eps = 0.3f;
-    int final_n = connect_with_astar_and_simplify(grid_map, coarse_r, coarse_c, coarse_n,
-                                                  out_path_x, out_path_y, max_path_len, rdp_eps);
-    return final_n;
 }

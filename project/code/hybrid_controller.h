@@ -101,7 +101,9 @@ void HybridController_Init(HybridController* ctrl, GridMap* grid_map, GameState*
 
 // 规划到箱子旁边（A*路径）
 int HybridController_PlanPathToBox(HybridController* ctrl, float start_x, float start_y, int box_id);
-
+// 路径跟踪函数（供主控制线程调用）
+int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angle,
+                float* vx, float* vy, float* omega, float* dist_to_end);
 // 进入视觉对准模式
 void HybridController_StartVisualAlign(HybridController* ctrl, float target_x, float target_y);
 

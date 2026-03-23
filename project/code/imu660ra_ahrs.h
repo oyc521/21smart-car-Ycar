@@ -37,7 +37,7 @@ float AHRS_GetRoll(void);
 float AHRS_GetYaw(void);
 void AHRS_ResetYaw(void);
 void AHRS_SetSamplingTime(float sampling_time);
-
+void IMU660RA_GetRawData(float *acc, float *gyro);
 // RT-Thread时间获取函数
 uint32_t GetSystemTimeMs(void);
 

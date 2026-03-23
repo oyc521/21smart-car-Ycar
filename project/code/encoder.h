@@ -20,6 +20,7 @@
 // 编码器参数
 #define ENCODER_PPR         1000        // 编码器每转脉冲数
 #define WHEEL_RADIUS        0.025f      // 轮子半径 25mm
+#define ENCODER_GEAR_RATIO  30.0f       // 电机减速比
 #define WHEEL_CIRCUMFERENCE (2.0f * M_PI * WHEEL_RADIUS) // 周长
 
 // 滤波选择

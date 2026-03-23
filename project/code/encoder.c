@@ -38,7 +38,7 @@ void EncoderInit(void)
         LowPassFilter_Init(&speed_lpf[i], ENCODER_LPF_ALPHA);
     }
 
-    rt_kprintf("Encoder Init OK\n");
+    //rt_kprintf("Encoder Init OK\n");
 }
 
 // 编码器更新（每10ms在PIT中断中调用）
@@ -63,8 +63,10 @@ void EncoderUpdate(void)
         if (delta[i] > 16384) delta[i] -= 32768;
         else if (delta[i] < -16384) delta[i] += 32768;
         last_raw[i] = raw[i];
+			// 取反，使正转时为正数
+				//delta[i] = -delta[i];
     }
-
+		
     float dt = delta_ms / 1000.0f;   // 秒
 
     // 保存原始计数值（供外部读取）
@@ -79,7 +81,7 @@ void EncoderUpdate(void)
     }
 
     // 转换为 m/s
-    float pps_to_mps = WHEEL_CIRCUMFERENCE / ENCODER_PPR;
+    float pps_to_mps = WHEEL_CIRCUMFERENCE / (ENCODER_PPR * ENCODER_GEAR_RATIO);
     for (int i = 0; i < 3; i++) {
         raw_speed_pps[i] *= pps_to_mps;
     }
@@ -118,7 +120,7 @@ void EncoderReset(void)
     for (int i = 0; i < 3; i++) {
         wheel_speed_mps[i] = 0;
     }
-    rt_kprintf("Encoder Reset\n");
+    //rt_kprintf("Encoder Reset\n");
 }
 
 // PIT中断处理函数（在isr.c中调用）
@@ -129,26 +131,34 @@ void pit_handler(void)
 #ifdef DEBUG
 #include "zf_device_wireless_uart.h"
 
-void encoder_send_thread_entry(void *parameter)
+static void encoder_thread_entry(void *parameter)
 {
-    //wireless_uart_init(); // 如果已在主函数初始化，可注释掉
+    // 无线模块初始化（如果已在主函数中初始化，可注释掉）
+    wireless_uart_init();
+
     while (1)
     {
         if (encoder_updated_flag)
         {
-            encoder_updated_flag = 0;
+            // 进入临界区，防止中断修改标志和数据
+            rt_enter_critical();
+            encoder_updated_flag = 0;          // 清零标志
             float speeds[3];
-            EncoderGetSpeeds(speeds);
-            int speed_int[3];
-            for (int i = 0; i < 3; i++) {
-                speed_int[i] = (int)(speeds[i] * 1000.0f);
-            }
+            EncoderGetSpeeds(speeds);          // 获取三个轮子速度（m/s）
+            rt_exit_critical();
+
+            // 通过无线模块发送速度值（乘以1000转为整数，避免浮点格式化问题）
             char buf[64];
-            rt_sprintf(buf, "SPD:%d,%d,%d\r\n",
-                       speed_int[0], speed_int[1], speed_int[2]);
+            int len = rt_sprintf(buf, "SPD:%d,%d,%d\r\n",
+                                 (int)(speeds[0] * 1000),
+                                 (int)(speeds[1] * 1000),
+                                 (int)(speeds[2] * 1000));
             wireless_uart_send_string(buf);
         }
-        rt_thread_mdelay(5);
+        else
+        {
+            rt_thread_mdelay(5);   // 无数据时让出CPU，5ms可调
+        }
     }
 }
 #endif

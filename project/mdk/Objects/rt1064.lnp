@@ -13,7 +13,6 @@
 ".\objects\sokoban_planner.o"
 ".\objects\hybrid_controller.o"
 ".\objects\grid_map.o"
-".\objects\control_thread.o"
 ".\objects\uart_receiver.o"
 ".\objects\uart2_recognition.o"
 ".\objects\mapping.o"

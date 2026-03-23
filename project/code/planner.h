@@ -3,11 +3,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-//#define DEBUG 0
+
 // 调试输出控制（设为0禁用调试输出）
 #ifndef DEBUG
 #define DEBUG 0
 #endif
+
 // 网格分辨率（细网格）
 #define RESOLUTION 0.05f  // 米/格
 
@@ -23,10 +24,10 @@
 #define FINE_ROWS (MAP_ROWS * 4)
 
 // 最大对象数量
-#define MAX_BOXES 12
-#define MAX_DESTINATIONS 12
+#define MAX_BOXES 8
+#define MAX_DESTINATIONS 8
 #define MAX_BOMBS 8
-#define MAX_WALLS 200
+#define MAX_WALLS 100
 
 // 占据栅格值
 #define OCC_FREE     0
@@ -45,6 +46,19 @@ typedef enum {
     DIR_DOWN_LEFT,
     DIR_DOWN_RIGHT
 } Direction;
+
+// 多炸弹规划数据结构
+#define MAX_BOMB_PATH_LENGTH 200
+#define MAX_TIME_SLOTS 100
+#define MAX_BOMB_PLANS 4
+typedef struct {
+    int bomb_id;
+    int priority;  // 基于距离或重要性
+    int path_len;
+    int path_actions[MAX_BOMB_PATH_LENGTH];  // 动作序列
+    float target_x, target_y;
+    int start_time;  // 规划开始时间
+} BombPlan;
 
 // 粗网格子地图
 typedef struct {
@@ -146,7 +160,6 @@ int simulate_wall_destruction(GameState* state, GridMap* grid_map,
                               int start_x, int start_y,
                               int box_id,
                               int* out_push_steps);
-
 void build_bomb_submap(GameState* state, GridMap* grid_map,
                        int bomb_id, int target_r, int target_c, CoarseMap* submap);
 int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
@@ -159,26 +172,34 @@ int plan_bomb_to_target(GameState* state, GridMap* grid_map, int bomb_id,
                         float* out_path_x, float* out_path_y, int max_path_len);
 int find_bomb_target_near_wall(GameState* state, GridMap* grid_map, Wall* wall,
                                float* out_x, float* out_y);
-/*int bfs_sokoban(CoarseMap* submap, int start_pr, int start_pc, int start_br, int start_bc,
-                int goal_br, int goal_bc, int* out_actions, int max_actions);*/
 int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                        float car_x, float car_y,
                        int* out_actions, int max_actions);
-// 路径规划相关数组最大尺寸（大幅减小，以释放 DTCM）
+int plan_multiple_bombs(GameState* state, GridMap* grid_map, float player_x, float player_y,
+                        BombPlan* plans, int max_plans);
+int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
+                          float start_car_x, float start_car_y,
+                          const int* actions, int action_count,
+                          float* out_x, float* out_y, int max_len);
+// 路径规划相关数组最大尺寸
 #ifndef MAX_PATH_POINTS
-#define MAX_PATH_POINTS  250
+#define MAX_PATH_POINTS  100
 #endif
 
 #ifndef MAX_BFS_QUEUE
-#define MAX_BFS_QUEUE   250   
+#define MAX_BFS_QUEUE   150
 #endif
 
 #ifndef MAX_KEEP_SIZE
-#define MAX_KEEP_SIZE   250
+#define MAX_KEEP_SIZE   150
 #endif
 
 #ifndef MAX_ACT_POINTS
-#define MAX_ACT_POINTS  250
+#define MAX_ACT_POINTS  150
 #endif
+
+// ========== 坐标转换函数 ==========
+void img_to_motion(float wx_img, float wy_img, float* mx, float* my);
+void motion_to_img(float mx, float my, float* wx_img, float* wy_img);
 
 #endif // PLANNER_H

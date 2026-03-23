@@ -520,11 +520,6 @@
               <FilePath>..\code\grid_map.c</FilePath>
             </File>
             <File>
-              <FileName>control_thread.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\control_thread.c</FilePath>
-            </File>
-            <File>
               <FileName>uart_receiver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\uart_receiver.c</FilePath>
