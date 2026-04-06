@@ -1,7 +1,5 @@
 /*********************************************************************************************************************
-* 文件名：main.c
-* 描述：集成速度控制、方向保持和路径跟踪。按 KEY4 启动，按 KEY3 执行硬编码直线路径测试。
-*       所有控制在一个线程中完成，避免多线程冲突。
+* 描述：集成UART地图接收、自动任务执行、编码器重置。混合控制器统一控制。支持动作测试模式。
 ********************************************************************************************************************/
 
 #include <rtthread.h>
@@ -15,25 +13,35 @@
 #include "encoder.h"
 #include "planner.h"
 #include "hybrid_controller.h"
+#include "uart_receiver.h"
+#include "task_manager.h"
+#include "seekfree_assistant.h"      // 逐飞助手支持
 
 // ========== 引脚定义 ==========
 #define KEY_START_PIN       C12
 #define LED_CONFIRM_PIN     B9
+#define MAP_REQ_INTERVAL_MS   200   // 重发间隔 200ms
+#define MAP_REQ_MAX_ATTEMPTS  25    // 最多重试 5 秒（25*200ms）
 
 // ========== 全局变量 ==========
 GridMap g_grid_map;
 GameState g_game_state;
 HybridController g_ctrl;
-static uint8_t system_started = 0;        // 系统启动标志
-static float angle_kp = 1.5f;
-static float angle_ki = 0.01f;
-static float angle_kd = 0.4f;
-static uint8_t forward_mode = 0;          // 空闲时的前进模式
+static uint8_t system_started = 0;
+static float angle_kp = 1.5f, angle_ki = 0.01f, angle_kd = 0.4f;
+static uint32_t last_map_req_tick = 0;
+uint8_t waiting_map = 0;      // 正在等待新地图
+uint8_t need_map_update = 0;   // 需要请求新地图（由任务管理器或混合控制器设置）
 
-// ========== 外部函数声明 ==========
-extern void AnglePID_SetParams(float kp, float ki, float kd);
-extern void RotateToAngleIMU(float target_angle);
-// follow_path 已在 hybrid_controller.h 中声明，无需再次声明
+// 动作测试模式变量
+static uint8_t action_test_mode = 0;
+static uint8_t action_executing = 0;
+static uint32_t action_start_tick = 0;
+static float action_vx = 0, action_vy = 0, action_omega = 0;
+static uint32_t action_duration_ms = 1000;   // 每个动作默认执行1秒
+
+// ========== 外部变量声明（来自 uart_receiver.c） ==========
+extern uint8_t g_map_updated;
 
 // ========== LED 闪烁 ==========
 static void led_blink_once(void) {
@@ -42,335 +50,205 @@ static void led_blink_once(void) {
     gpio_set_level(LED_CONFIRM_PIN, 1);
 }
 
-// ========== 主控制线程（集成所有控制） ==========
+// ========== 发送地图请求 ==========
+static void request_new_map(void) {
+    wireless_uart_send_string("request_new_map called.\r\n");
+    uart_write_string(UART_1, "MAP_REQ\n");
+    wireless_uart_send_string("MAP_REQ sent.\r\n");
+}
+
+// ========== 主控制线程 ==========
 static void control_thread_entry(void *parameter) {
+    wireless_uart_send_string("Control thread started.\r\n");
+
     uint32_t tick = rt_tick_get();
     char buf[128];
     float target_yaw = 0.0f;
     uint8_t yaw_initialized = 0;
-    // 空闲模式不输出速度
-    float vx_target = 0.0f;
-    float vy_target = 0.0f;
+    float current_omega_rad = 0.0f;
 
     while (1) {
+        // 更新位置（基于编码器积分）
+        Position_Update();
+
         key_scanner();
 
-        // KEY4 启动系统（仅标志，不控制电机）
+        // KEY4 启动系统
         if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_4);
             if (!system_started) {
                 system_started = 1;
                 led_blink_once();
-                wireless_uart_send_string("System started (idle).\r\n");
+                wireless_uart_send_string("System started. Requesting initial map...\r\n");
+                waiting_map = 1;
+                request_new_map();
                 AHRS_ResetYaw();
                 target_yaw = 0.0f;
                 yaw_initialized = 1;
             }
         }
 
-                // KEY2 多箱子顺序规划测试
+        // KEY1 切换动作测试模式
         if (key_get_state(KEY_1) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_1);
-            if (!system_started) {
-                wireless_uart_send_string("System not started. Press KEY4 first.\r\n");
-                continue;
+            action_test_mode = !action_test_mode;
+            if (action_test_mode) {
+                wireless_uart_send_string("Action test mode ON. Send parameter via Assistant.\r\n");
+                action_executing = 0;
+                CarController_SetSpeed(0, 0, 0);
+            } else {
+                wireless_uart_send_string("Action test mode OFF.\r\n");
+                action_executing = 0;
+                CarController_SetSpeed(0, 0, 0);
             }
-
-            wireless_uart_send_string("Multi-box sequential planning...\r\n");
-
-            // 复制当前游戏状态（规划过程可能修改，但我们需要保持原始状态？实际执行中会修改，无需复制）
-            // 依次处理每个未完成的箱子
-            int total_boxes = g_game_state.num_boxes;
-            int success_count = 0;
-            for (int box_id = 0; box_id < total_boxes; box_id++) {
-                if (g_game_state.boxes[box_id].state == 1) {
-                    char buf[64];
-                    rt_sprintf(buf, "Box %d already pushed, skip.\r\n", box_id);
-                    wireless_uart_send_string(buf);
-                    continue;
-                }
-
-                char buf[128];
-                rt_sprintf(buf, "Processing box %d at (%.2f,%.2f) to dest %d\r\n",
-                           box_id,
-                           g_game_state.boxes[box_id].x,
-                           g_game_state.boxes[box_id].y,
-                           g_game_state.boxes[box_id].dest_id);
-                wireless_uart_send_string(buf);
-
-                // 获取当前小车位置
-                float car_x = position.x_m;
-                float car_y = position.y_m;
-                // 如果小车位置为0（未移动），使用默认起点
-                if (car_x < 0.01f && car_y < 0.01f) {
-                    car_x = 0.5f;
-                    car_y = 0.5f;
-                    wireless_uart_send_string("Using default start (0.5,0.5)\r\n");
-                }
-
-                // 规划推箱子
-                int actions[200];
-                int action_count = light_sokoban_plan(&g_game_state, &g_grid_map, box_id,
-                                                      car_x, car_y, actions, 200);
-                if (action_count <= 0) {
-                    rt_sprintf(buf, "Planning failed for box %d\r\n", box_id);
-                    wireless_uart_send_string(buf);
-                    continue;
-                }
-
-                // 注意：light_sokoban_plan 返回的动作已经是 4~7，不需要再加 4
-                // 转换为世界坐标路径
-                float path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-                int path_len = actions_to_world_path(&g_game_state, &g_grid_map, box_id,
-                                                     car_x, car_y, actions, action_count,
-                                                     path_x, path_y, MAX_PATH_POINTS);
-                if (path_len <= 0) {
-                    rt_sprintf(buf, "Path conversion failed for box %d\r\n", box_id);
-                    wireless_uart_send_string(buf);
-                    continue;
-                }
-
-                // 将路径存入混合控制器
-                for (int i = 0; i < path_len; i++) {
-                    g_ctrl.current_path[i][0] = path_x[i];
-                    g_ctrl.current_path[i][1] = path_y[i];
-                }
-                g_ctrl.path_len = path_len;
-                g_ctrl.path_following = 1;
-                g_ctrl.is_bomb_path = 0;
-                g_ctrl.path_stuck_counter = 0;
-                g_ctrl.mode = CTRL_MODE_PATH_FOLLOWING;
-
-                rt_sprintf(buf, "Executing path for box %d, length %d\r\n", box_id, path_len);
-                wireless_uart_send_string(buf);
-
-                // 执行路径跟踪
-                int wait_count = 0;
-                float dist_to_end = 100.0f;
-                while (g_ctrl.mode == CTRL_MODE_PATH_FOLLOWING && g_ctrl.path_following && wait_count < 500) {
-                    Position_Update();
-                    float cur_x = position.x_m;
-                    float cur_y = position.y_m;
-                    float cur_angle = position.yaw_rad;
-                    float vx, vy, omega;
-                    if (follow_path(&g_ctrl, cur_x, cur_y, cur_angle, &vx, &vy, &omega, &dist_to_end)) {
-                        CarController_SetSpeed(vx, vy, omega);
-                        CarController_Update();
-                        if (dist_to_end < g_ctrl.path_tolerance) {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                    rt_thread_mdelay(10);
-                    wait_count++;
-                }
-                if (wait_count >= 500)
-                    wireless_uart_send_string("Timeout.\r\n");
-                else
-                    wireless_uart_send_string("Path finished.\r\n");
-
-                // 停止小车，等待下一个箱子
-                CarController_Stop();
-                g_ctrl.mode = CTRL_MODE_IDLE;
-
-                // 注意：箱子状态应该在执行推动动作时由混合控制器自动更新（apply_push 中调用）
-                // 但为了确保，我们再次检查状态，若未更新则手动刷新地图
-                if (g_game_state.boxes[box_id].state == 0) {
-                    // 可能推动未完成，但路径执行完毕，强制刷新地图
-                    refresh_grid_map(&g_game_state, &g_grid_map);
-                }
-
-                success_count++;
-            }
-
-            char buf[64];
-            rt_sprintf(buf, "Multi-box test finished, success %d/%d\r\n", success_count, total_boxes);
-            wireless_uart_send_string(buf);
         }
-        // KEY2 重置位置到 (0.5, 0.5)
+
+        // KEY2 重置位置（调试用）
         if (key_get_state(KEY_2) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_2);
             if (!system_started) {
-                wireless_uart_send_string("System not started. Press KEY4 first.\r\n");
+                wireless_uart_send_string("System not started.\r\n");
                 continue;
             }
             Position_Set(0.3f, 1.2f, 0.0f);
-            wireless_uart_send_string("Position reset to (0.5,0.5) yaw=0\r\n");
+            wireless_uart_send_string("Position reset to (0.3,1.2) yaw=0\r\n");
         }
 
-
-               // KEY3 A* 规划路径测试（从当前位置向前移动1米）
-        // KEY3 推箱子测试（箱子 (0.5,0.5) 推到 (1.5,0.5)）
-                // KEY3 推箱子测试（调试版）
-        if (key_get_state(KEY_3) == KEY_SHORT_PRESS) {
-            key_clear_state(KEY_3);
-            if (!system_started) {
-                wireless_uart_send_string("System not started. Press KEY4 first.\r\n");
-                continue;
+        // ========== 地图请求逻辑：持续重发直到收到地图 ==========
+        if (system_started && waiting_map) {
+            uint32_t now = rt_tick_get();
+            if (last_map_req_tick == 0 || (now - last_map_req_tick) >= RT_TICK_PER_SECOND * MAP_REQ_INTERVAL_MS / 1000) {
+                static uint8_t req_attempts = 0;
+                if (req_attempts >= MAP_REQ_MAX_ATTEMPTS) {
+                    wireless_uart_send_string("Map request timeout, reset waiting_map.\r\n");
+                    waiting_map = 0;
+                    req_attempts = 0;
+                    last_map_req_tick = 0;
+                } else {
+                    request_new_map();
+                    req_attempts++;
+                    last_map_req_tick = now;
+                }
             }
+        }
 
-            // 手动设置箱子和目的地（运动坐标）
-            float box_x = 0.5f;
-            float box_y = 0.5f;
-            float dest_x = 1.5f;
-            float dest_y = 0.5f;
+        // 检查地图是否已更新（UART接收线程解析完成）
+        if (waiting_map && g_map_updated) {
+            g_map_updated = 0;
+            waiting_map = 0;
+            last_map_req_tick = 0;
+            wireless_uart_send_string("New map received, task manager will handle planning.\r\n");
+        }
 
-            // 清空游戏状态中的箱子和目的地，并添加测试数据
-            g_game_state.num_boxes = 1;
-            g_game_state.boxes[0].x = box_x;
-            g_game_state.boxes[0].y = box_y;
-            g_game_state.boxes[0].grid_x = (int)(box_x / CELL_SIZE) * 4 + 2; // 近似
-            g_game_state.boxes[0].grid_y = (int)(box_y / CELL_SIZE) * 4 + 2;
-            g_game_state.boxes[0].state = 0;
-            g_game_state.boxes[0].dest_id = 0;
-            g_game_state.boxes[0].type = BOX_TYPE_UNKNOWN;
-
-            g_game_state.num_destinations = 1;
-            g_game_state.destinations[0].x = dest_x;
-            g_game_state.destinations[0].y = dest_y;
-            g_game_state.destinations[0].grid_x = (int)(dest_x / CELL_SIZE) * 4 + 2;
-            g_game_state.destinations[0].grid_y = (int)(dest_y / CELL_SIZE) * 4 + 2;
-            g_game_state.destinations[0].assigned_box_id = 0;
-            g_game_state.destinations[0].required_digit = 0;
-
-            // 刷新网格地图
-            refresh_grid_map(&g_game_state, &g_grid_map);
-
-            // 获取当前小车位置
-            float car_x = position.x_m;
-            float car_y = position.y_m;
-
-									char buf[128];
-			rt_sprintf(buf, "Car pos (%d,%d) Box (%d,%d) Dest (%d,%d)\r\n",
-								 (int)(car_x*1000), (int)(car_y*1000),
-								 (int)(box_x*1000), (int)(box_y*1000),
-								 (int)(dest_x*1000), (int)(dest_y*1000));
-			wireless_uart_send_string(buf);
-            // 调用轻量级推箱子规划器
-            int actions[200];
-            wireless_uart_send_string("Calling light_sokoban_plan...\r\n");
-            int action_count = light_sokoban_plan(&g_game_state, &g_grid_map, 0,
-                                                  car_x, car_y, actions, 200);
-            rt_sprintf(buf, "light_sokoban_plan returned %d\r\n", action_count);
+        // ========== 接收逐飞助手参数（动作码） ==========
+        seekfree_assistant_data_analysis();
+        if (seekfree_assistant_parameter_update_flag[0]) {
+            seekfree_assistant_parameter_update_flag[0] = 0;
+            int action_code = (int)(seekfree_assistant_parameter[0] + 0.5f);
+            rt_sprintf(buf, "Received action code: %d\r\n", action_code);
             wireless_uart_send_string(buf);
 
-            if (action_count <= 0) {
-                wireless_uart_send_string("Sokoban planning failed!\r\n");
-                continue;
-            }
-
-            // 打印动作序列
-            for (int i = 0; i < action_count; i++) {
-                rt_sprintf(buf, "action[%d]=%d\r\n", i, actions[i]);
-                wireless_uart_send_string(buf);
-            }
-
-            // 去掉加4的循环
-// for (int i = 0; i < action_count; i++) {
-//     actions[i] += 4;
-// }
-
-
-            // 转换为世界坐标路径
-            float path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-            int path_len = actions_to_world_path(&g_game_state, &g_grid_map, 0,
-                                                 car_x, car_y, actions, action_count,
-                                                 path_x, path_y, MAX_PATH_POINTS);
-            rt_sprintf(buf, "path_len=%d\r\n", path_len);
-            wireless_uart_send_string(buf);
-
-            if (path_len <= 0) {
-                wireless_uart_send_string("Path conversion failed!\r\n");
-                continue;
-            }
-
-            // 将路径存入混合控制器
-            for (int i = 0; i < path_len; i++) {
-                g_ctrl.current_path[i][0] = path_x[i];
-                g_ctrl.current_path[i][1] = path_y[i];
-            }
-            g_ctrl.path_len = path_len;
-            g_ctrl.path_following = 1;
-            g_ctrl.is_bomb_path = 0;
-            g_ctrl.path_stuck_counter = 0;
-            g_ctrl.mode = CTRL_MODE_PATH_FOLLOWING;
-
-            wireless_uart_send_string("Executing Sokoban path...\r\n");
-
-            // 执行路径跟踪
-            int wait_count = 0;
-            float dist_to_end = 100.0f;
-            while (g_ctrl.mode == CTRL_MODE_PATH_FOLLOWING && g_ctrl.path_following && wait_count < 500) {
-                Position_Update();
-                float cur_x = position.x_m;
-                float cur_y = position.y_m;
-                float cur_angle = position.yaw_rad;
-                float vx, vy, omega;
-                if (follow_path(&g_ctrl, cur_x, cur_y, cur_angle, &vx, &vy, &omega, &dist_to_end)) {
-                    CarController_SetSpeed(vx, vy, omega);
-                    CarController_Update();
-                    if (dist_to_end < g_ctrl.path_tolerance) {
+            if (action_test_mode) {
+                switch(action_code) {
+                    case 1:
+                        action_vx = 0.2f; action_vy = 0; action_omega = 0;
+                        wireless_uart_send_string("Action: FORWARD\r\n");
                         break;
-                    }
-                } else {
-                    break;
+                    case 2:
+                        action_vx = -0.2f; action_vy = 0; action_omega = 0;
+                        wireless_uart_send_string("Action: BACKWARD\r\n");
+                        break;
+                    case 3:
+                        action_vx = 0; action_vy = -0.2f; action_omega = 0;
+                        wireless_uart_send_string("Action: LEFT\r\n");
+                        break;
+                    case 4:
+                        action_vx = 0; action_vy = 0.2f; action_omega = 0;
+                        wireless_uart_send_string("Action: RIGHT\r\n");
+                        break;
+                    case 5:
+                        action_vx = 0; action_vy = 0; action_omega = 0.5f;
+                        wireless_uart_send_string("Action: TURN LEFT\r\n");
+                        break;
+                    case 6:
+                        action_vx = 0; action_vy = 0; action_omega = -0.5f;
+                        wireless_uart_send_string("Action: TURN RIGHT\r\n");
+                        break;
+                    case 7:
+                        wireless_uart_send_string("Manual push: FORWARD (action=4)\r\n");
+                        if (g_ctrl.current_box_id >= 0) {
+                            apply_push(&g_ctrl, g_ctrl.current_box_id, ACTION_PUSH_UP);
+                        } else {
+                            wireless_uart_send_string("No current box\r\n");
+                        }
+                        break;
+                    case 8:
+                        wireless_uart_send_string("Manual push: BACKWARD (action=6)\r\n");
+                        if (g_ctrl.current_box_id >= 0) {
+                            apply_push(&g_ctrl, g_ctrl.current_box_id, ACTION_PUSH_DOWN);
+                        } else {
+                            wireless_uart_send_string("No current box\r\n");
+                        }
+                        break;
+                    case 9:
+                        wireless_uart_send_string("Manual push: LEFT (action=7)\r\n");
+                        if (g_ctrl.current_box_id >= 0) {
+                            apply_push(&g_ctrl, g_ctrl.current_box_id, ACTION_PUSH_LEFT);
+                        } else {
+                            wireless_uart_send_string("No current box\r\n");
+                        }
+                        break;
+                    case 10:
+                        wireless_uart_send_string("Manual push: RIGHT (action=5)\r\n");
+                        if (g_ctrl.current_box_id >= 0) {
+                            apply_push(&g_ctrl, g_ctrl.current_box_id, ACTION_PUSH_RIGHT);
+                        } else {
+                            wireless_uart_send_string("No current box\r\n");
+                        }
+                        break;
+                    case 0:
+                        action_vx = 0; action_vy = 0; action_omega = 0;
+                        action_executing = 0;
+                        wireless_uart_send_string("Action: STOP\r\n");
+                        break;
+                    default:
+                        wireless_uart_send_string("Unknown action code\r\n");
+                        break;
                 }
-                rt_thread_mdelay(10);
-                wait_count++;
+                if (action_code >= 1 && action_code <= 6) {
+                    action_executing = 1;
+                    action_start_tick = rt_tick_get();
+                    CarController_SetSpeed(action_vx, action_vy, action_omega);
+                }
             }
-            if (wait_count >= 500)
-                wireless_uart_send_string("Timeout.\r\n");
-            else
-                wireless_uart_send_string("Finished.\r\n");
-
-            CarController_Stop();
-            g_ctrl.mode = CTRL_MODE_IDLE;
-            wireless_uart_send_string("Sokoban test done.\r\n");
         }
-        // ========== 控制逻辑 ==========
-        if (system_started && yaw_initialized) {
-            if (g_ctrl.mode == CTRL_MODE_PATH_FOLLOWING) {
-                // 路径跟踪模式
-                float car_x = position.x_m;
-                float car_y = position.y_m;
-                float car_angle = position.yaw_rad;
-                float dist_to_end;
-                float vx, vy, omega;
 
-                if (follow_path(&g_ctrl, car_x, car_y, car_angle, &vx, &vy, &omega, &dist_to_end)) {
-                    CarController_SetSpeed(vx, vy, omega);
-                    CarController_Update();
+        // ========== 控制逻辑：动作测试模式优先 ==========
+        if (action_test_mode) {
+            // 关键：必须调用 CarController_Update() 来执行PID并输出PWM
+            CarController_Update();
 
-                    // 到达终点则自动退出
-                    if (dist_to_end < g_ctrl.path_tolerance) {
-                        g_ctrl.mode = CTRL_MODE_IDLE;
-                        g_ctrl.path_following = 0;
-                        wireless_uart_send_string("Auto finished.\r\n");
-                    }
-                } else {
-                    g_ctrl.mode = CTRL_MODE_IDLE;
-                    g_ctrl.path_following = 0;
-                    wireless_uart_send_string("Follow failed.\r\n");
+            if (action_executing) {
+                uint32_t elapsed = rt_tick_get() - action_start_tick;
+                if (elapsed >= action_duration_ms * RT_TICK_PER_SECOND / 1000) {
+                    CarController_SetSpeed(0, 0, 0);
+                    action_executing = 0;
+                    wireless_uart_send_string("Action finished.\r\n");
                 }
-            } else {
-                // 空闲模式：方向保持 + 可选前进
-                float current_yaw = AHRS_GetYaw();
-                float angle_error = target_yaw - current_yaw;
-                while (angle_error > 180.0f) angle_error -= 360.0f;
-                while (angle_error < -180.0f) angle_error += 360.0f;
-
-                float omega_deg = PD(&angle_trace_param, 0, angle_error);
-                if (omega_deg > 50.0f) omega_deg = 50.0f;
-                else if (omega_deg < -50.0f) omega_deg = -50.0f;
-                float omega_rad = omega_deg * DEG_TO_RAD;
-
-                CarController_SetSpeed(vx_target, vy_target, omega_rad);
-                CarController_Update();
             }
+        } else if (system_started && yaw_initialized && !waiting_map) {
+            float vx, vy, omega;
+            float current_time = (float)rt_tick_get() / 1000.0f;
+            HybridController_ComputeControl(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
+                                            0.005f, current_time, &vx, &vy, &omega);
+            CarController_SetSpeed(vx, vy, omega);
+            CarController_Update();
+            current_omega_rad = car_ctrl.current_omega;
         } else {
-            // 未启动或未初始化时停止电机
-            for (int i = 0; i < 3; i++) Motor_SetPWM(i, 0);
+            // 未启动、未初始化或等待地图时停止电机
+            CarController_SetSpeed(0, 0, 0);
+            CarController_Update();
+            current_omega_rad = 0.0f;
         }
 
         // 监控数据打印（每50ms）
@@ -381,17 +259,16 @@ static void control_thread_entry(void *parameter) {
             for (int i = 0; i < 3; i++) target[i] = car_ctrl.motors[i].target_speed_mps;
 
             rt_sprintf(buf,
-                "mode=%d kp=%d ki=%d kd=%d akp=%d aki=%d akd=%d "
+                "mode=%d vx=%d vy=%d omega=%d "
                 "ch1:%d ch2:%d ch3:%d ch4:%d ch5:%d ch6:%d\r\n",
                 g_ctrl.mode,
-                (int)(pid_kp * 10), (int)(pid_ki * 10), (int)(pid_kd * 10),
-                (int)(angle_trace_param.kp * 10), (int)(angle_trace_param.ki * 10), (int)(angle_trace_param.kd * 10),
-                (int)(target[0] * 1000), (int)(target[1] * 1000), (int)(target[2] * 1000),
-                (int)(actual[0] * 1000), (int)(actual[1] * 1000), (int)(actual[2] * 1000));
+                (int)(target[0]*1000), (int)(target[1]*1000), (int)(current_omega_rad*1000),
+                (int)(target[0]*1000), (int)(target[1]*1000), (int)(target[2]*1000),
+                (int)(actual[0]*1000), (int)(actual[1]*1000), (int)(actual[2]*1000));
             wireless_uart_send_string(buf);
         }
 
-        rt_thread_mdelay(5);   // 控制周期5ms
+        rt_thread_mdelay(5);
     }
 }
 
@@ -413,86 +290,44 @@ int main(void) {
 
     IMU660RA_AHRS_Init();
     Position_Init();
+    task_manager_init();
+    task_manager_start();
 
-    // 加载测试地图（内部空地）
-    const char* test_map_text =
-        "################\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "#---------.----#\n"
-        "#------$-------#\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "#--------------#\n"
-        "################\n";
-    load_map_from_text(test_map_text, &g_grid_map, &g_game_state);
-		// 清空原有箱子和目的地
-		g_game_state.num_boxes = 0;
-		g_game_state.num_destinations = 0;
+    // 初始地图为空
+    memset(&g_game_state, 0, sizeof(g_game_state));
+    memset(&g_grid_map, 0, sizeof(g_grid_map));
 
-		// 添加箱子1
-		g_game_state.boxes[0].x = 0.5f;
-		g_game_state.boxes[0].y = 0.5f;
-		g_game_state.boxes[0].state = 0;
-		g_game_state.boxes[0].dest_id = 0;  // 关联目的地0
-		g_game_state.boxes[0].type = BOX_TYPE_UNKNOWN;
-		g_game_state.num_boxes = 1;
-
-		// 添加箱子2
-		g_game_state.boxes[1].x = 1.0f;
-		g_game_state.boxes[1].y = 1.0f;
-		g_game_state.boxes[1].state = 0;
-		g_game_state.boxes[1].dest_id = 1;  // 关联目的地1
-		g_game_state.boxes[1].type = BOX_TYPE_UNKNOWN;
-		g_game_state.num_boxes = 2;
-
-		// 添加目的地1
-		g_game_state.destinations[0].x = 1.5f;
-		g_game_state.destinations[0].y = 0.5f;
-		g_game_state.destinations[0].assigned_box_id = 0;
-		g_game_state.num_destinations = 1;
-
-		// 添加目的地2
-		g_game_state.destinations[1].x = 2.0f;
-		g_game_state.destinations[1].y = 1.0f;
-		g_game_state.destinations[1].assigned_box_id = 1;
-		g_game_state.num_destinations = 2;
-		
     HybridController_Init(&g_ctrl, &g_grid_map, &g_game_state);
-    g_ctrl.max_speed = 0.1f;
-    g_ctrl.path_tolerance = 0.05f;
+    g_ctrl.max_speed = 0.10f;
+    g_ctrl.path_tolerance = 0.15f;
+
+    // 初始化 UART1 接收
+    uart_receive_init();
+    rt_thread_t uart_thread = rt_thread_create("uart_parse",
+                                               parse_uart_data_thread_entry,
+                                               RT_NULL,
+                                               4096,
+                                               5,
+                                               20);
+    if (uart_thread) rt_thread_startup(uart_thread);
+    else wireless_uart_send_string("Failed to create uart thread.\r\n");
 
     pit_ms_init(PIT_CH0, 10);
     interrupt_global_enable(0);
 
     // 创建控制线程
-    rt_thread_t tid = rt_thread_create("control", control_thread_entry, NULL,
-                                       8192, RT_THREAD_PRIORITY_MAX / 2, 20);
-    if (tid) rt_thread_startup(tid);
-
-    // 主线程负责动态调参
-    while (1) {
-        seekfree_assistant_data_analysis();
-        for (uint8_t i = 0; i < SEEKFREE_ASSISTANT_SET_PARAMETR_COUNT; i++) {
-            if (seekfree_assistant_parameter_update_flag[i]) {
-                seekfree_assistant_parameter_update_flag[i] = 0;
-                float val = seekfree_assistant_parameter[i];
-                switch (i) {
-                    case 0: MotorPID_SetGlobalParams(val, pid_ki, pid_kd); break;
-                    case 1: MotorPID_SetGlobalParams(pid_kp, val, pid_kd); break;
-                    case 2: MotorPID_SetGlobalParams(pid_kp, pid_ki, val); break;
-                    case 3: AnglePID_SetParams(val, angle_ki, angle_kd); break;
-                    case 4: AnglePID_SetParams(angle_kp, val, angle_kd); break;
-                    case 5: AnglePID_SetParams(angle_kp, angle_ki, val); break;
-                }
-                char msg[64];
-                rt_sprintf(msg, "ch%d updated to %d\r\n", i+1, (int)(val * 1000));
-                wireless_uart_send_string(msg);
-            }
-        }
-        rt_thread_mdelay(10);
+    rt_thread_t ctrl_thread = rt_thread_create("control", control_thread_entry, NULL,
+                                               8192, RT_THREAD_PRIORITY_MAX / 2, 20);
+    if (ctrl_thread) {
+        rt_thread_startup(ctrl_thread);
+        wireless_uart_send_string("Control thread created and started.\r\n");
+    } else {
+        wireless_uart_send_string("Failed to create control thread.\r\n");
     }
+
+    wireless_uart_send_string("System ready. Press KEY4 to start. Press KEY1 for action test mode.\r\n");
+
+    rt_system_scheduler_start();
+
+    return 0;
 }

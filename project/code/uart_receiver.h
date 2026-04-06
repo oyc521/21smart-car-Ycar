@@ -20,10 +20,18 @@ typedef struct {
 /* 全局环形缓冲区实例 */
 extern ring_buffer_t g_uart_rb;
 
+/* 地图更新标志（由解析线程设置，主线程查询） */
+extern uint8_t g_map_updated;
+/* 需要请求地图标志（由混合控制器设置，主线程发送请求） */
+extern uint8_t need_map_update;
+
 /* 初始化串口接收（配置 UART1，开启中断） */
 void uart_receive_init(void);
 
 /* 解析线程入口函数 */
 void parse_uart_data_thread_entry(void *parameter);
+
+/* 外部触发规划函数（在 uart_receiver.c 中定义） */
+void trigger_planning(void);
 
 #endif

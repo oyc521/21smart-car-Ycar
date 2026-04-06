@@ -13,8 +13,8 @@
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
   ..\..\libraries\rt-thread\components\finsh\finsh.h ..\code\planner.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdbool.h \
-  ..\code\hybrid_controller.h ..\code\uart2_recognition.h \
-  ..\code\position.h ..\..\libraries\zf_common\zf_common_headfile.h \
+  ..\code\hybrid_controller.h ..\code\position.h \
+  ..\..\libraries\zf_common\zf_common_headfile.h \
   ..\..\libraries\sdk\drives\fsl_common.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\assert.h \
   ..\..\libraries\sdk\deceive\fsl_device_registers.h \

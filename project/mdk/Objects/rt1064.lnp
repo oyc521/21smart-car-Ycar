@@ -16,7 +16,6 @@
 ".\objects\uart_receiver.o"
 ".\objects\uart2_recognition.o"
 ".\objects\mapping.o"
-".\objects\debug_display.o"
 ".\objects\task_manager.o"
 ".\objects\zf_common_clock.o"
 ".\objects\zf_common_debug.o"

@@ -102,7 +102,7 @@ static int find_nearest_dest(float x, float y)
 }
 
 // ---------- 分配函数（贪心算法） ----------
-void assign_boxes_to_destinations(void)
+/*void assign_boxes_to_destinations(void)
 {
     // 收集未分配的箱子（state == 0 且 dest_id == -1）
     int box_ids[MAX_BOXES];
@@ -160,7 +160,7 @@ void assign_boxes_to_destinations(void)
     // 可在此处触发任务管理器开始执行第一个箱子任务
     // 例如：if (box_count > 0) HybridController_PlanPathToBox(&g_ctrl, ...);
 }
-
+*/
 // ---------- 检查是否所有对象都已识别 ----------
 static void check_all_recognized(void)
 {

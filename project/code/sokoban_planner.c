@@ -5,144 +5,26 @@
 #include <stdio.h>
 #include "zf_device_wireless_uart.h"
 #include <rtthread.h>
-// ----- 辅助：RDP 简化和 A* 连接函数 -----
-static float point_line_distance(float x0, float y0, float x1, float y1, float x2, float y2) {
-    float vx = x1 - x0, vy = y1 - y0;
-    float wx = x2 - x0, wy = y2 - y0;
-    float c1 = vx * wx + vy * wy;
-    float c2 = vx * vx + vy * vy;
-    if (c2 <= 1e-9f) {
-        float dx = x2 - x0, dy = y2 - y0;
-        return sqrtf(dx*dx + dy*dy);
-    }
-    float t = c1 / c2;
-    if (t < 0.0f) t = 0.0f;
-    if (t > 1.0f) t = 1.0f;
-    float px = x0 + t * vx;
-    float py = y0 + t * vy;
-    float dx = x2 - px, dy = y2 - py;
-    return sqrtf(dx*dx + dy*dy);
+
+// 死锁检测：如果箱子不在目标点，且被障碍物包围至少两个方向（角落）则返回1
+static int is_deadlock(int br, int bc, int goal_br, int goal_bc, uint8_t obstacle[MAP_ROWS][MAP_COLS]) {
+    if (br == goal_br && bc == goal_bc) return 0;  // 目标点不死锁
+    
+    // 统计四个方向被障碍物（墙/箱子/边界）阻挡的数量
+    int walls = 0;
+    if (br == 0 || obstacle[br-1][bc]) walls++;
+    if (br == MAP_ROWS-1 || obstacle[br+1][bc]) walls++;
+    if (bc == 0 || obstacle[br][bc-1]) walls++;
+    if (bc == MAP_COLS-1 || obstacle[br][bc+1]) walls++;
+    
+    // 如果有两个或以上方向被堵，则死锁
+    if (walls >= 2) return 1;
+    
+    // 特例：紧贴墙壁且对面也是墙（例如贴着上墙，上方是墙，左右有一边也是墙）
+    // 简化处理，上面已经覆盖了大部分情况
+    return 0;
 }
 
-static int rdp_recursive(const float* x, const float* y, int n, float eps, int* keep) {
-    if (n <= 2) {
-        for (int i = 0; i < n; i++) keep[i] = 1;
-        return n;
-    }
-    int idx = -1;
-    float maxd = -1.0f;
-    for (int i = 1; i < n-1; i++) {
-        float d = point_line_distance(x[0], y[0], x[n-1], y[n-1], x[i], y[i]);
-        if (d > maxd) { maxd = d; idx = i; }
-    }
-    if (maxd <= eps) {
-        for (int i = 0; i < n; i++) keep[i] = 0;
-        keep[0] = 1; keep[n-1] = 1;
-        return 2;
-    }
-    int left_keep[1000];
-    int right_keep[1000];
-    int left_n = idx + 1;
-    int right_n = n - idx;
-    rdp_recursive(x, y, left_n, eps, left_keep);
-    rdp_recursive(x + idx, y + idx, right_n, eps, right_keep);
-    int out_count = 0;
-    for (int i = 0; i < left_n; i++) if (left_keep[i]) keep[i] = 1; else keep[i] = 0;
-    for (int i = 1; i < right_n; i++) if (right_keep[i]) keep[idx + i] = 1;
-    for (int i = 0; i < n; i++) if (keep[i]) out_count++;
-    return out_count;
-}
-
-static int rdp_simplify(const float* in_x, const float* in_y, int n, float eps, float* out_x, float* out_y) {
-    if (n <= 2) {
-        for (int i = 0; i < n; i++) { out_x[i] = in_x[i]; out_y[i] = in_y[i]; }
-        return n;
-    }
-    if (n > MAX_KEEP_SIZE) n = MAX_KEEP_SIZE;
-    int keep[MAX_KEEP_SIZE] = {0};
-    rdp_recursive(in_x, in_y, n, eps, keep);
-    int cnt = 0;
-    for (int i = 0; i < n; i++) if (keep[i]) { out_x[cnt] = in_x[i]; out_y[cnt] = in_y[i]; cnt++; }
-    return cnt;
-}
-
-static int line_of_sight(GridMap* map, int x0, int y0, int x1, int y1) {
-    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-    int err = dx + dy;
-    int x = x0, y = y0;
-    while (1) {
-        if (!(x == x1 && y == y1)) {
-            uint8_t occ = map->occupancy[y][x];
-            if (occ == OCC_WALL || occ == OCC_BOX) return 0;
-        }
-        if (x == x1 && y == y1) break;
-        int e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x += sx; }
-        if (e2 <= dx) { err += dx; y += sy; }
-    }
-    return 1;
-}
-
-static int connect_with_astar_and_simplify(GridMap* grid_map, int* coarse_r, int* coarse_c, int m,
-                                          float* out_x, float* out_y, int max_len, float rdp_eps) {
-    if (m <= 0) return 0;
-    static float acc_x[MAX_PATH_POINTS];
-    static float acc_y[MAX_PATH_POINTS];
-    int acc_count = 0;
-    AStarParams params = {.max_iterations = 5000, .inflation_radius = 2};
-    for (int i = 0; i < m - 1; i++) {
-        int cr0 = coarse_r[i], cc0 = coarse_c[i];
-        int cr1 = coarse_r[i+1], cc1 = coarse_c[i+1];
-        int sx = cc0 * 4 + 2; int sy = cr0 * 4 + 2;
-        int gx = cc1 * 4 + 2; int gy = cr1 * 4 + 2;
-        if (sx < 0) sx = 0; if (sx >= grid_map->width) sx = grid_map->width-1;
-        if (gx < 0) gx = 0; if (gx >= grid_map->width) gx = grid_map->width-1;
-        if (sy < 0) sy = 0; if (sy >= grid_map->height) sy = grid_map->height-1;
-        if (gy < 0) gy = 0; if (gy >= grid_map->height) gy = grid_map->height-1;
-
-        if (line_of_sight(grid_map, sx, sy, gx, gy)) {
-            float wx = (cc0 + 0.5f) * CELL_SIZE;
-            float wy = (cr0 + 0.5f) * CELL_SIZE;
-            if (acc_count < MAX_PATH_POINTS && (acc_count == 0 || fabsf(wx - acc_x[acc_count-1]) > 1e-6f || fabsf(wy - acc_y[acc_count-1]) > 1e-6f)) {
-                acc_x[acc_count] = wx; acc_y[acc_count] = wy; acc_count++;
-            }
-            continue;
-        }
-
-        int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-        int plen = astar_plan_path(grid_map, sx, sy, gx, gy, path_x, path_y, MAX_PATH_POINTS, &params);
-        if (plen <= 0) {
-            float wx = (cc0 + 0.5f) * CELL_SIZE;
-            float wy = (cr0 + 0.5f) * CELL_SIZE;
-            if (acc_count < MAX_PATH_POINTS && (acc_count == 0 || fabsf(wx - acc_x[acc_count-1]) > 1e-6f || fabsf(wy - acc_y[acc_count-1]) > 1e-6f)) {
-                acc_x[acc_count] = wx; acc_y[acc_count] = wy; acc_count++;
-            }
-            continue;
-        }
-        for (int k = 0; k < plen; k++) {
-            int fx = path_x[k], fy = path_y[k];
-            float wx, wy;
-            grid_to_world(fx, fy, &wx, &wy);
-            if (acc_count < MAX_PATH_POINTS && (acc_count == 0 || fabsf(wx - acc_x[acc_count-1]) > 1e-6f || fabsf(wy - acc_y[acc_count-1]) > 1e-6f)) {
-                acc_x[acc_count] = wx; acc_y[acc_count] = wy; acc_count++;
-            }
-        }
-        if (acc_count >= MAX_PATH_POINTS) break;
-    }
-    float last_wx = (coarse_c[m-1] + 0.5f) * CELL_SIZE;
-    float last_wy = (coarse_r[m-1] + 0.5f) * CELL_SIZE;
-    if (acc_count < MAX_PATH_POINTS && (acc_count == 0 || fabsf(last_wx - acc_x[acc_count-1]) > 1e-6f || fabsf(last_wy - acc_y[acc_count-1]) > 1e-6f)) {
-        acc_x[acc_count] = last_wx; acc_y[acc_count] = last_wy; acc_count++;
-    }
-
-    static float simp_x[MAX_PATH_POINTS];
-    static float simp_y[MAX_PATH_POINTS];
-    int simp_n = rdp_simplify(acc_x, acc_y, acc_count, rdp_eps, simp_x, simp_y);
-    int out_n = (simp_n < max_len) ? simp_n : max_len;
-    for (int i = 0; i < out_n; i++) { out_x[i] = simp_x[i]; out_y[i] = simp_y[i]; }
-    return out_n;
-}
 
 int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
                           float start_car_x, float start_car_y,
@@ -178,7 +60,7 @@ int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
         int d = actions[i] - 4;
         if (d < 0 || d >= 4) {
             char dbg[64];
-            rt_sprintf(dbg, "Invalid action %d\n", actions[i]);
+            sprintf(dbg, "Invalid action %d\n", actions[i]);
             wireless_uart_send_string(dbg);
             continue;
         }
@@ -187,19 +69,19 @@ int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
         int push_c = bc - dc4[d];
         // 打印动作信息
         char dbg[64];
-        rt_sprintf(dbg, "Action %d: d=%d, push(%d,%d)\n", i, d, push_r, push_c);
+        sprintf(dbg, "Action %d: d=%d, push(%d,%d)\n", i, d, push_r, push_c);
         wireless_uart_send_string(dbg);
 
         int sx = pc * 4 + 2;
         int sy = pr * 4 + 2;
         int gx = push_c * 4 + 2;
         int gy = push_r * 4 + 2;
-        rt_sprintf(dbg, "  A* from (%d,%d) to (%d,%d)\n", sx, sy, gx, gy);
+        //sprintf(dbg, "  A* from (%d,%d) to (%d,%d)\n", sx, sy, gx, gy);
         wireless_uart_send_string(dbg);
 
         int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
         int plen = astar_plan_path(grid_map, sx, sy, gx, gy, path_x, path_y, MAX_PATH_POINTS, &params);
-        rt_sprintf(dbg, "  A* plen=%d\n", plen);
+        //sprintf(dbg, "  A* plen=%d\n", plen);
         wireless_uart_send_string(dbg);
         if (plen > 0) {
             for (int k = 0; k < plen; k++) {
@@ -226,7 +108,7 @@ int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
 
     // 打印总点数
     char dbg[64];
-    rt_sprintf(dbg, "Total points: %d\n", point_count);
+    sprintf(dbg, "Total points: %d\n", point_count);
     wireless_uart_send_string(dbg);
 
     int n = (point_count < max_len) ? point_count : max_len;
@@ -267,6 +149,7 @@ int sokoban_plan_for_box(GameState* state, GridMap* grid_map, int box_id,
     }
     return n;
 }
+
 void build_single_box_submap(GameState* state, GridMap* grid_map,
                              int box_id, CoarseMap* submap) {
     memset(submap->cells, 0, sizeof(submap->cells));
@@ -340,10 +223,17 @@ static int can_reach_fine(GridMap* map, int sx, int sy, int gx, int gy) {
             int ny = y + dy[d];
             if (nx < 0 || nx >= map->width || ny < 0 || ny >= map->height) continue;
             if (visited[ny][nx]) continue;
+
+            // 对角线移动：检查两个相邻格子，只要不全被阻隔即可通过
             if (dx[d] != 0 && dy[d] != 0) {
-                if (map->occupancy[y][nx] == OCC_WALL || map->occupancy[y][nx] == OCC_BOX) continue;
-                if (map->occupancy[ny][x] == OCC_WALL || map->occupancy[ny][x] == OCC_BOX) continue;
+                uint8_t occ1 = map->occupancy[y][nx];
+                uint8_t occ2 = map->occupancy[ny][x];
+                if ((occ1 == OCC_WALL || occ1 == OCC_BOX) &&
+                    (occ2 == OCC_WALL || occ2 == OCC_BOX)) {
+                    continue; // 两个方向都被堵，不能斜穿
+                }
             }
+            // 检查目标格子本身
             if (map->occupancy[ny][nx] == OCC_WALL || map->occupancy[ny][nx] == OCC_BOX) continue;
             if (nx == gx && ny == gy) return 1;
             visited[ny][nx] = 1;
@@ -354,57 +244,47 @@ static int can_reach_fine(GridMap* map, int sx, int sy, int gx, int gy) {
     return 0;
 }
 
-static int is_deadlock_simple(int br, int bc, int goal_br, int goal_bc,
-                              const uint8_t obstacle[MAP_ROWS][MAP_COLS]) {
-    if (br == goal_br && bc == goal_bc) return 0;
-    const int dir_pairs[4][2] = {{0,1}, {0,3}, {2,1}, {2,3}};
-    const int dr[4] = {-1, 0, 1, 0};
-    const int dc[4] = {0, 1, 0, -1};
-    for (int p = 0; p < 4; p++) {
-        int d1 = dir_pairs[p][0];
-        int d2 = dir_pairs[p][1];
-        int r1 = br + dr[d1];
-        int c1 = bc + dc[d1];
-        int r2 = br + dr[d2];
-        int c2 = bc + dc[d2];
-        int blocked1 = (r1 < 0 || r1 >= MAP_ROWS || c1 < 0 || c1 >= MAP_COLS || obstacle[r1][c1] == 1);
-        int blocked2 = (r2 < 0 || r2 >= MAP_ROWS || c2 < 0 || c2 >= MAP_COLS || obstacle[r2][c2] == 1);
-        if (blocked1 && blocked2) return 1;
-    }
-    return 0;
-}
 
 int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                        float car_x, float car_y,
                        int* out_actions, int max_actions) {
     char buf[128];
+    // 入口打印（使用整数，坐标放大1000倍保留精度）
     rt_sprintf(buf, "light_sokoban_plan: entry, box_id=%d, car=(%d,%d)\r\n",
-               box_id, (int)(car_x*1000), (int)(car_y*1000));
+               box_id, (int)(car_x * 1000), (int)(car_y * 1000));
     wireless_uart_send_string(buf);
 
-    if (box_id < 0 || box_id >= state->num_boxes) {
-        wireless_uart_send_string("light_sokoban_plan: invalid box_id\r\n");
-        return -1;
-    }
+    if (box_id < 0 || box_id >= state->num_boxes) return -1;
     Box* box = &state->boxes[box_id];
-    if (box->dest_id < 0) {
-        wireless_uart_send_string("light_sokoban_plan: box dest_id invalid\r\n");
-        return -1;
-    }
+    if (box->dest_id < 0) return -1;
 
-    int br = (int)(box->y / CELL_SIZE);
-    int bc = (int)(box->x / CELL_SIZE);
+    // 箱子和目标点运动坐标 -> 图像坐标
+    float box_img_x, box_img_y, dest_img_x, dest_img_y;
+    motion_to_image(box->x, box->y, &box_img_x, &box_img_y);
+    motion_to_image(state->destinations[box->dest_id].x, state->destinations[box->dest_id].y,
+                    &dest_img_x, &dest_img_y);
+    
+    int br = (int)(box_img_y / CELL_SIZE);
+    int bc = (int)(box_img_x / CELL_SIZE);
     int pr = (int)(car_y / CELL_SIZE);
     int pc = (int)(car_x / CELL_SIZE);
-    Destination* dest = &state->destinations[box->dest_id];
-    int goal_br = (int)(dest->y / CELL_SIZE);
-    int goal_bc = (int)(dest->x / CELL_SIZE);
+    int goal_br = (int)(dest_img_y / CELL_SIZE);
+    int goal_bc = (int)(dest_img_x / CELL_SIZE);
 
-    rt_sprintf(buf, "light_sokoban_plan: box grid(%d,%d), car grid(%d,%d), goal(%d,%d)\r\n",
-               br, bc, pr, pc, goal_br, goal_bc);
+    // 边界限幅
+    if (br < 0) br = 0; if (br >= MAP_ROWS) br = MAP_ROWS - 1;
+    if (bc < 0) bc = 0; if (bc >= MAP_COLS) bc = MAP_COLS - 1;
+    if (pr < 0) pr = 0; if (pr >= MAP_ROWS) pr = MAP_ROWS - 1;
+    if (pc < 0) pc = 0; if (pc >= MAP_COLS) pc = MAP_COLS - 1;
+    if (goal_br < 0) goal_br = 0; if (goal_br >= MAP_ROWS) goal_br = MAP_ROWS - 1;
+    if (goal_bc < 0) goal_bc = 0; if (goal_bc >= MAP_COLS) goal_bc = MAP_COLS - 1;
+
+    // 新增：打印箱子和目标点的粗网格索引
+    rt_sprintf(buf, "light_sokoban_plan: box_grid=(%d,%d) goal_grid=(%d,%d)\r\n",
+               br, bc, goal_br, goal_bc);
     wireless_uart_send_string(buf);
 
-    // 构建障碍物地图
+    // 构建障碍物地图（粗网格）
     uint8_t obstacle[MAP_ROWS][MAP_COLS] = {{0}};
     for (int r = 0; r < MAP_ROWS; r++) {
         for (int c = 0; c < MAP_COLS; c++) {
@@ -421,17 +301,34 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
             next_cell:;
         }
     }
-    // 其他箱子
+    // 其他箱子（忽略当前箱子）
     for (int i = 0; i < state->num_boxes; i++) {
         if (i == box_id) continue;
         if (state->boxes[i].state == 0) {
-            int or_ = (int)(state->boxes[i].y / CELL_SIZE);
-            int oc = (int)(state->boxes[i].x / CELL_SIZE);
+            float other_img_x, other_img_y;
+            motion_to_image(state->boxes[i].x, state->boxes[i].y, &other_img_x, &other_img_y);
+            int or_ = (int)(other_img_y / CELL_SIZE);
+            int oc = (int)(other_img_x / CELL_SIZE);
+            if (or_ == goal_br && oc == goal_bc) continue;
             if (or_ >= 0 && or_ < MAP_ROWS && oc >= 0 && oc < MAP_COLS)
                 obstacle[or_][oc] = 1;
         }
     }
-    wireless_uart_send_string("light_sokoban_plan: obstacle map built\r\n");
+
+    // 新增：打印箱子周围 3x3 区域的 obstacle 值
+    wireless_uart_send_string("Obstacle around box (3x3):\r\n");
+    for (int dr = -1; dr <= 1; dr++) {
+        for (int dc = -1; dc <= 1; dc++) {
+            int r = br + dr, c = bc + dc;
+            if (r >= 0 && r < MAP_ROWS && c >= 0 && c < MAP_COLS) {
+                rt_sprintf(buf, "%d ", obstacle[r][c]);
+            } else {
+                rt_sprintf(buf, ". ");
+            }
+            wireless_uart_send_string(buf);
+        }
+        wireless_uart_send_string("\r\n");
+    }
 
     const int dr[4] = {-1, 0, 1, 0};
     const int dc[4] = {0, 1, 0, -1};
@@ -444,10 +341,10 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
         int action;
     } LightNode;
 
-    static LightNode queue[200];
+    static LightNode queue[500];
     int best_pushes[MAP_ROWS][MAP_COLS];
     memset(best_pushes, -1, sizeof(best_pushes));
-
+	
     int head = 0, tail = 0;
     queue[tail].br = br; queue[tail].bc = bc;
     queue[tail].pr = pr; queue[tail].pc = pc;
@@ -461,7 +358,9 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
 
     while (head < tail) {
         LightNode cur = queue[head];
+        // 新增：找到目标时打印
         if (cur.br == goal_br && cur.bc == goal_bc) {
+            wireless_uart_send_string("BFS found goal!\r\n");
             found_idx = head;
             break;
         }
@@ -477,7 +376,8 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
             if (nbr < 0 || nbr >= MAP_ROWS || nbc < 0 || nbc >= MAP_COLS) continue;
             if (obstacle[nbr][nbc] == 1) continue;
 
-            if (is_deadlock_simple(nbr, nbc, goal_br, goal_bc, obstacle)) continue;
+            // 死锁检测
+            if (is_deadlock(nbr, nbc, goal_br, goal_bc, obstacle)) continue;
 
             int sx = cur.pc * 4 + 2;
             int sy = cur.pr * 4 + 2;
@@ -488,7 +388,7 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
             int new_pushes = cur.pushes + 1;
             if (best_pushes[nbr][nbc] == -1 || new_pushes < best_pushes[nbr][nbc]) {
                 best_pushes[nbr][nbc] = new_pushes;
-                if (tail >= 200) continue;
+                if (tail >= 500) continue;
                 queue[tail].br = nbr;
                 queue[tail].bc = nbc;
                 queue[tail].pr = cur.br;
@@ -502,12 +402,14 @@ int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
         head++;
     }
 
-    rt_sprintf(buf, "light_sokoban_plan: BFS finished, found_idx=%d, tail=%d\r\n", found_idx, tail);
-    wireless_uart_send_string(buf);
+    // 新增：BFS 结束未找到时打印
+    if (found_idx == -1) {
+        wireless_uart_send_string("BFS failed to find goal.\r\n");
+        return -1;
+    }
 
-    if (found_idx == -1) return -1;
-
-    int actions[200];
+    // 回溯动作序列
+    int actions[500];
     int act_cnt = 0;
     int idx = found_idx;
     while (idx != -1) {

@@ -75,17 +75,21 @@ void PIT_IRQHandler(void)
 }
 
 
+// 在 isr.c 开头添加外部声明
+extern void uart1_rx_callback(void);
+
 void LPUART1_IRQHandler(void)
 {
     if(kLPUART_RxDataRegFullFlag & LPUART_GetStatusFlags(LPUART1))
     {
-        // 接收中断
-    #if DEBUG_UART_USE_INTERRUPT                        // 如果开启 debug 串口中断
-        debug_interrupr_handler();                      // 调用 debug 串口接收处理函数 数据会被 debug 环形缓冲区读取
-    #endif                                              // 如果修改了 DEBUG_UART_INDEX 那这段代码需要放到对应的串口中断去
+        // 原有的 debug 处理（如果 DEBUG_UART_USE_INTERRUPT 已定义）
+    //#if DEBUG_UART_USE_INTERRUPT
+        //debug_interrupr_handler();   // 原有的调试串口处理
+    //#endif
+        // 新增：调用我们的自定义回调
+        uart1_rx_callback();
     }
-        
-    LPUART_ClearStatusFlags(LPUART1, kLPUART_RxOverrunFlag);    // 不允许删除
+    LPUART_ClearStatusFlags(LPUART1, kLPUART_RxOverrunFlag);
 }
 
 void LPUART2_IRQHandler(void)

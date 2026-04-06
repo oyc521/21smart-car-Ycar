@@ -198,8 +198,8 @@ int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
 #define MAX_ACT_POINTS  150
 #endif
 
-// ========== 坐标转换函数 ==========
-void img_to_motion(float wx_img, float wy_img, float* mx, float* my);
-void motion_to_img(float mx, float my, float* wx_img, float* wy_img);
+// 坐标转换函数（运动坐标 <-> 图像坐标）
+void motion_to_image(float mx, float my, float* wx, float* wy);
+void image_to_motion(float wx, float wy, float* mx, float* my);
 
 #endif // PLANNER_H

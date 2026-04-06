@@ -121,7 +121,10 @@ void rt_hw_board_init(void)
     SysTick_Config(SystemCoreClock / RT_TICK_PER_SECOND);
 	
 #ifdef RT_USING_HEAP
-    rt_system_heap_init((void *)&Image$$RTT_HEAP$$ZI$$Base, (void *)&Image$$RTT_HEAP$$ZI$$Limit);
+    // 使用 ARM_LIB_HEAP 作为系统堆
+    //extern uint32_t Image$$ARM_LIB_HEAP$$Base[];
+    //extern uint32_t Image$$ARM_LIB_HEAP$$ZI$$Limit[];
+    rt_system_heap_init((void *)&Image$$ARM_LIB_HEAP$$Base, (void *)&Image$$ARM_LIB_HEAP$$ZI$$Limit);
 #endif
 
     /* 初始化组件 */

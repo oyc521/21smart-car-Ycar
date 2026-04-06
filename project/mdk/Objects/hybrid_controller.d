@@ -114,4 +114,5 @@
   ..\..\libraries\rt-thread\include\rtservice.h \
   ..\..\libraries\rt-thread\include\rtm.h \
   ..\..\libraries\rt-thread\components\finsh\finsh.h \
-  ..\code\task_manager.h
+  ..\code\task_manager.h ..\code\position.h ..\code\pid.h \
+  ..\code\filter.h

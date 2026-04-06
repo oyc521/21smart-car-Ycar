@@ -106,11 +106,13 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
                 float* vx, float* vy, float* omega, float* dist_to_end);
 // 进入视觉对准模式
 void HybridController_StartVisualAlign(HybridController* ctrl, float target_x, float target_y);
-
+void apply_push(HybridController* ctrl, int box_id, int action);
 // 规划炸弹路径（使用 bomb_planner）
 int HybridController_PlanBombPath(HybridController* ctrl, float start_x, float start_y,
                                   int bomb_id, float target_x, float target_y);
-
+//炸弹规划
+int HybridController_PlanBomb(HybridController* ctrl, int bomb_id, float car_x, float car_y,
+                              float target_x, float target_y);
 // 规划Sokoban动作序列
 int HybridController_PlanSokoban(HybridController* ctrl, int box_id, float car_x, float car_y);
 
