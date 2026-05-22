@@ -115,4 +115,5 @@
   ..\..\libraries\sdk\board\clock_config.h ..\code\filter.h \
   ..\code\position.h ..\code\pid.h ..\code\motor.h ..\code\kinematics.h \
   ..\code\encoder.h ..\code\planner.h ..\code\hybrid_controller.h \
-  ..\code\uart_receiver.h ..\code\task_manager.h
+  ..\code\uart_receiver.h ..\code\task_manager.h \
+  ..\code\uart4_recognition.h ..\code\debug.h

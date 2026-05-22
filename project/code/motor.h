@@ -75,6 +75,8 @@ void MotorController_SetSpeed(int motor_id, float speed_mps);  // 设置单个电机速
 // PID参数设置
 void PIDController_SetParams(int motor_id, float kp, float ki, float kd);
 void PIDController_Reset(int motor_id);         // 重置PID控制器
+void MotorController_ResetWheelPIDs(void);
+void MotorController_SetWheelKI(float ki);
 
 // 测试函数
 void Test_Square(float side_length, float speed);      // 正方形测试

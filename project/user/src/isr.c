@@ -38,7 +38,8 @@
 #include "isr.h"
 
 extern void pit_handler(void);
-
+extern void uart1_rx_callback(void);
+extern void uart4_rx_callback(void);
 
 
 void CSI_IRQHandler(void)
@@ -74,9 +75,6 @@ void PIT_IRQHandler(void)
     __DSB();
 }
 
-
-// 在 isr.c 开头添加外部声明
-extern void uart1_rx_callback(void);
 
 void LPUART1_IRQHandler(void)
 {
@@ -114,17 +112,16 @@ void LPUART3_IRQHandler(void)
     LPUART_ClearStatusFlags(LPUART3, kLPUART_RxOverrunFlag);    // 不允许删除
 }
 
+
+
 void LPUART4_IRQHandler(void)
 {
     if(kLPUART_RxDataRegFullFlag & LPUART_GetStatusFlags(LPUART4))
     {
-        // 接收中断 
-        flexio_camera_uart_handler();
-        
-        gnss_uart_callback();
+        uart4_rx_callback();   // 新增
+        // 若 UART4 还用于其他功能（如 flexio_camera_uart_handler），可根据条件区分
     }
-        
-    LPUART_ClearStatusFlags(LPUART4, kLPUART_RxOverrunFlag);    // 不允许删除
+    LPUART_ClearStatusFlags(LPUART4, kLPUART_RxOverrunFlag);
 }
 
 void LPUART5_IRQHandler(void)

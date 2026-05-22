@@ -33,6 +33,7 @@ void Kinematics_Inverse(float vx, float vy, float omega, float wheel_speeds[3])
     wheel_speeds[0] = -sin_0 * vx + cos_0 * vy + R_omega;   // = vy + R¦Ø
     wheel_speeds[1] = -sin_120 * vx + cos_120 * vy + R_omega; // = -0.866vx -0.5vy + R¦Ø
     wheel_speeds[2] = -sin_240 * vx + cos_240 * vy + R_omega; // = 0.866vx -0.5vy + R¦Ø
+	
 }
 
 /**

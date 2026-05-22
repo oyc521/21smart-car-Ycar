@@ -41,5 +41,6 @@ void EncoderUpdate(void);
 void EncoderReset(void);
 void EncoderGetCounts(float counts[3]);
 void EncoderGetSpeeds(float speeds_mps[3]);
+void EncoderGetDeltas(int16_t deltas[3]);
 
 #endif

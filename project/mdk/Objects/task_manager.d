@@ -113,4 +113,6 @@
   ..\..\libraries\components\sdmmc\common\fsl_sdmmc_spec.h \
   ..\..\libraries\components\sdmmc\sdmmc_config.h \
   ..\..\libraries\sdk\board\clock_config.h ..\code\pid.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h ..\code\filter.h
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h ..\code\filter.h \
+  ..\code\mapping.h ..\code\motor.h ..\code\kinematics.h \
+  ..\code\uart_receiver.h ..\code\encoder.h

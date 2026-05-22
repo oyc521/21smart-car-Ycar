@@ -11,9 +11,9 @@ static float acc_x_g = 0, acc_y_g = 0, acc_z_g = 0;
 static float gyro_x_dps = 0, gyro_y_dps = 0, gyro_z_dps = 0;
 
 // 零偏校准值
-static float gyro_bias_x = 0, gyro_bias_y = 0, gyro_bias_z = 0;
+static float gyro_bias_x = 0, gyro_bias_y = 0;
 static float acc_bias_x = 0, acc_bias_y = 0, acc_bias_z = 0;
-
+float gyro_bias_z = 0;
 // 时间戳
 static uint32_t last_time_ms = 0;
 static uint8_t time_initialized = 0;
@@ -132,7 +132,7 @@ void AHRS_Update(void)
     // 扣除陀螺仪零偏
     float gx = gyro_x_dps - gyro_bias_x;
     float gy = gyro_y_dps - gyro_bias_y;
-    float gz = gyro_z_dps - gyro_bias_z;
+    float gz = (gyro_z_dps - gyro_bias_z) * 0.5f;   // 修正驱动层 2 倍问题
 
     // 加速度计数据（未减零偏）
     float ax = acc_x_g;
@@ -162,22 +162,22 @@ void AHRS_Update(void)
     attitude.yaw   = gyro_yaw;
 
     // 角度范围限制
-    if (attitude.pitch > 180.0f) attitude.pitch -= 360.0f;
-    else if (attitude.pitch < -180.0f) attitude.pitch += 360.0f;
-    if (attitude.roll > 180.0f) attitude.roll -= 360.0f;
-    else if (attitude.roll < -180.0f) attitude.roll += 360.0f;
-    if (attitude.yaw > 180.0f) attitude.yaw -= 360.0f;
-    else if (attitude.yaw < -180.0f) attitude.yaw += 360.0f;
-
+        // 角度归一化（使用 while 彻底归一化）
+    while (attitude.pitch > 180.0f) attitude.pitch -= 360.0f;
+    while (attitude.pitch < -180.0f) attitude.pitch += 360.0f;
+    while (attitude.roll > 180.0f) attitude.roll -= 360.0f;
+    while (attitude.roll < -180.0f) attitude.roll += 360.0f;
+    while (attitude.yaw > 180.0f) attitude.yaw -= 360.0f;
+    while (attitude.yaw < -180.0f) attitude.yaw += 360.0f;
     // 诊断输出（每秒约20次，可选择只输出部分信息）
-    static uint32_t last_print = 0;
+    /*static uint32_t last_print = 0;
     if (AHRS_DEBUG && (current_time_ms - last_print > 500)) // 每500ms输出一次
     {
         AHRS_PRINT("acc_angle: %.2f %.2f | gyro_raw: %.2f %.2f %.2f\r\n",
                    acc_pitch, acc_roll,
                    gx, gy, gz);
         last_print = current_time_ms;
-    }
+    }*/
 }
 
 /**
@@ -200,11 +200,18 @@ float AHRS_GetRoll(void)
 
 /**
  * @brief 获取偏航角
- * @return 偏航角 (度)
+ * @return 偏航角 (度) 范围 [-180, 180]
  */
 float AHRS_GetYaw(void)
 {
-    return attitude.yaw;
+    float yaw = attitude.yaw;
+    
+    // 归一化到 [-180, 180]
+    yaw = fmodf(yaw, 360.0f);
+    if (yaw > 180.0f) yaw -= 360.0f;
+    else if (yaw < -180.0f) yaw += 360.0f;
+    
+    return yaw;
 }
 
 /**
@@ -214,7 +221,13 @@ void AHRS_ResetYaw(void)
 {
     attitude.yaw = 0.0f;
 }
-
+/**
+ * @brief 获取扣除零偏后的Z轴角速度（度/秒）
+ */
+float AHRS_GetGyroZ(void)
+{
+    return (gyro_z_dps - gyro_bias_z) * 0.5f;    // 返回真实角速度
+}
 /**
  * @brief 设置固定采样时间
  * @param sampling_time 采样时间 (秒)
@@ -224,21 +237,6 @@ void AHRS_SetSamplingTime(float sampling_time)
     dt = sampling_time;
 }
 
-// 以下函数是为了兼容原ICM42688接口而保留（可选）
-void InitICM42688(void)
-{
-    IMU660RA_AHRS_Init();
-}
-
-void Get_Acc_ICM42688(void)
-{
-    IMU660RA_GetData();
-}
-
-void Get_Gyro_ICM42688(void)
-{
-    IMU660RA_GetData();
-}
 
 // 获取原始物理单位数据（未减零偏）
 void IMU660RA_GetRawData(float *acc, float *gyro)

@@ -1,22 +1,26 @@
 #include "planner.h"
 #include <math.h>
 #include <float.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>   // 提供 abs()
 
-// 静态数组代替动态分配
-static float g_score[FINE_ROWS * FINE_COLS];
-static int parent[FINE_ROWS * FINE_COLS];
-static bool closed[FINE_ROWS * FINE_COLS];
+// 确保 MAX_PATH_POINTS 有定义（与 hybrid_controller.h 保持一致）
+#ifndef MAX_PATH_POINTS
+#define MAX_PATH_POINTS 400
+#endif
 
-// 节点优先级队列（最小堆）- 静态实现
+// ===== 将大数组放入 OCRAM，释放 DTCM =====
+__attribute__((section("OCRAM_CACHE"))) static float g_score[FINE_ROWS * FINE_COLS];
+__attribute__((section("OCRAM_CACHE"))) static int parent[FINE_ROWS * FINE_COLS];
+__attribute__((section("OCRAM_CACHE"))) static bool closed[FINE_ROWS * FINE_COLS];
+
 typedef struct {
     int x, y;
     float f;
 } HeapNode;
 
-static HeapNode heap_nodes[FINE_ROWS * FINE_COLS];
+__attribute__((section("OCRAM_CACHE"))) static HeapNode heap_nodes[FINE_ROWS * FINE_COLS];
 static int heap_size;
 
 static void heap_push(int x, int y, float f) {
@@ -54,29 +58,89 @@ static HeapNode heap_pop(void) {
     return top;
 }
 
-// 启发式函数（对角线距离）
 static float heuristic(int x1, int y1, int x2, int y2) {
     int dx = abs(x1 - x2);
     int dy = abs(y1 - y2);
     return fmaxf(dx, dy) + (sqrtf(2) - 1) * fminf(dx, dy);
 }
 
+static int line_of_sight_grid(GridMap* map, int x0, int y0, int x1, int y1) {
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy, e2;
+    int x = x0, y = y0;
+
+    while (1) {
+        if (!(x == x0 && y == y0) && !(x == x1 && y == y1)) {
+            uint8_t occ = map->occupancy[y][x];
+            if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB)
+                return 0;
+        }
+        if (x == x1 && y == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
+    }
+    return 1;
+}
+
+static int greedy_straighten(GridMap* map, int* path_x, int* path_y, int len, int max_len) {
+    if (len <= 2) return len;
+
+    int kept_x[MAX_PATH_POINTS], kept_y[MAX_PATH_POINTS];
+    int kept_len = 0;
+
+    kept_x[kept_len] = path_x[0];
+    kept_y[kept_len] = path_y[0];
+    kept_len++;
+
+    int last_idx = 0;
+    while (last_idx < len - 1) {
+        int next_idx = last_idx + 1;
+        for (int i = len - 1; i > last_idx; i--) {
+            if (line_of_sight_grid(map, path_x[last_idx], path_y[last_idx],
+                                   path_x[i], path_y[i])) {
+                next_idx = i;
+                break;
+            }
+        }
+        if (kept_len < max_len) {
+            kept_x[kept_len] = path_x[next_idx];
+            kept_y[kept_len] = path_y[next_idx];
+            kept_len++;
+        }
+        last_idx = next_idx;
+    }
+
+    int out_len = kept_len < max_len ? kept_len : max_len;
+    for (int i = 0; i < out_len; i++) {
+        path_x[i] = kept_x[i];
+        path_y[i] = kept_y[i];
+    }
+    return out_len;
+}
+
 int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal_y,
                     int* out_path_x, int* out_path_y, int max_path_len, AStarParams* params) {
+    if (map && map->width > 30 && map->height > 2) {
+        printf("[A*入口] map->occupancy[2][30]=%d, goal=(%d,%d) occ=%d\n",
+               map->occupancy[2][30], goal_x, goal_y, map->occupancy[goal_y][goal_x]);
+    }
+
     const int width = map->width;
     const int height = map->height;
 
-    // 检查起点终点有效性
     if (start_x < 0 || start_x >= width || start_y < 0 || start_y >= height ||
         goal_x < 0 || goal_x >= width || goal_y < 0 || goal_y >= height) {
         return -1;
     }
     if (map->occupancy[start_y][start_x] == OCC_WALL ||
-        map->occupancy[goal_y][goal_x] == OCC_WALL) {
+        map->occupancy[start_y][start_x] == OCC_BOMB ||
+        map->occupancy[goal_y][goal_x] == OCC_WALL ||
+        map->occupancy[goal_y][goal_x] == OCC_BOMB) {
         return -1;
     }
 
-    // 初始化数组
     for (int i = 0; i < width * height; i++) {
         g_score[i] = FLT_MAX;
         parent[i] = -1;
@@ -120,8 +184,16 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
             if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
             int nidx = ny * width + nx;
             if (closed[nidx]) continue;
-            if (map->occupancy[ny][nx] == OCC_WALL) continue;
-            if (!(nx == goal_x && ny == goal_y) && map->occupancy[ny][nx] == OCC_BOX) continue;
+
+            if (map->occupancy[ny][nx] == OCC_WALL || map->occupancy[ny][nx] == OCC_BOMB) continue;
+            if (!(nx == goal_x && ny == goal_y) && (map->occupancy[ny][nx] == OCC_BOX)) continue;
+
+            if (dx[d] != 0 && dy[d] != 0) {
+                if (map->occupancy[cy][nx] == OCC_WALL || map->occupancy[cy][nx] == OCC_BOX || map->occupancy[cy][nx] == OCC_BOMB)
+                    continue;
+                if (map->occupancy[ny][cx] == OCC_WALL || map->occupancy[ny][cx] == OCC_BOX || map->occupancy[ny][cx] == OCC_BOMB)
+                    continue;
+            }
 
             float tentative_g = g_score[idx] + move_cost[d] * map->cost_map[ny][nx];
             if (tentative_g < g_score[nidx]) {
@@ -134,24 +206,45 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
     }
 
     int path_len = 0;
-    if (found) {
-        int cur = goal_idx;
-        while (cur != -1) {
-            int x = cur % width;
-            int y = cur / width;
-            if (path_len < max_path_len) {
-                out_path_x[path_len] = x;
-                out_path_y[path_len] = y;
-                path_len++;
-            }
-            cur = parent[cur];
-        }
-        for (int i = 0; i < path_len / 2; i++) {
-            int j = path_len - 1 - i;
-            int tx = out_path_x[i]; out_path_x[i] = out_path_x[j]; out_path_x[j] = tx;
-            int ty = out_path_y[i]; out_path_y[i] = out_path_y[j]; out_path_y[j] = ty;
-        }
-    }
+		if (found) {
+				// 1. 先计算路径总长度
+				int total_len = 0;
+				int cur = goal_idx;
+				while (cur != -1) {
+						total_len++;
+						cur = parent[cur];
+				}
 
-    return found ? path_len : -1;
+				// 2. 决定实际写入的点数
+				int write_count = (total_len < max_path_len) ? total_len : max_path_len;
+				int skip = (total_len > max_path_len) ? (total_len - max_path_len) : 0;
+
+				// 3. 从 goal 回溯，跳过前面靠近 goal 的多余节点，保留靠近 start 的部分
+				cur = goal_idx;
+				for (int i = 0; i < skip; i++) {
+						cur = parent[cur];
+				}
+
+				// 4. 写入 write_count 个节点（逆序：从 start 方向的第 write_count 个点到 start）
+				int idx = 0;
+				while (idx < write_count && cur != -1) {
+						out_path_x[idx] = cur % width;
+						out_path_y[idx] = cur / width;
+						idx++;
+						cur = parent[cur];
+				}
+				path_len = idx;   // = write_count
+
+				// 5. 反转，使路径从起点开始
+				for (int i = 0; i < path_len / 2; i++) {
+						int j = path_len - 1 - i;
+						int tx = out_path_x[i]; out_path_x[i] = out_path_x[j]; out_path_x[j] = tx;
+						int ty = out_path_y[i]; out_path_y[i] = out_path_y[j]; out_path_y[j] = ty;
+				}
+
+				// 6. 平滑路径（内部只操作前 path_len 个元素，安全）
+				path_len = greedy_straighten(map, out_path_x, out_path_y, path_len, max_path_len);
+		}
+
+		return found ? path_len : -1;
 }

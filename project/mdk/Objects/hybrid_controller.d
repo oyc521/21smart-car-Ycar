@@ -3,13 +3,21 @@
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdint.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdbool.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h \
+  ..\..\libraries\rt-thread\include\rtthread.h \
+  ..\..\libraries\rt-thread\bsp\imxrt1064-nxp-evk\rtconfig.h \
+  ..\..\libraries\rt-thread\include\rtdebug.h \
+  ..\..\libraries\rt-thread\include\rtdef.h \
+  ..\..\libraries\rt-thread\include\rtservice.h \
+  ..\..\libraries\rt-thread\include\rtm.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdarg.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stddef.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h ..\code\kinematics.h \
+  ..\..\libraries\rt-thread\components\finsh\finsh.h ..\code\position.h \
   ..\..\libraries\zf_common\zf_common_headfile.h \
   ..\..\libraries\sdk\drives\fsl_common.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\assert.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stddef.h \
   ..\..\libraries\sdk\deceive\fsl_device_registers.h \
   ..\..\libraries\sdk\deceive\MIMXRT1064.h \
   ..\..\libraries\sdk\CMSIS\Include\core_cm7.h \
@@ -24,7 +32,6 @@
   ..\..\libraries\sdk\drives\fsl_common_arm.h \
   ..\..\libraries\sdk\drives\fsl_clock.h \
   ..\..\libraries\sdk\utilities\debug_console\fsl_debug_console.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdarg.h \
   ..\..\libraries\sdk\drives\fsl_iomuxc.h \
   ..\..\libraries\sdk\drives\fsl_cache.h \
   ..\..\libraries\sdk\drives\fsl_csi.h \
@@ -106,13 +113,7 @@
   ..\..\libraries\sdk\drives\fsl_usdhc.h \
   ..\..\libraries\components\sdmmc\common\fsl_sdmmc_spec.h \
   ..\..\libraries\components\sdmmc\sdmmc_config.h \
-  ..\..\libraries\sdk\board\clock_config.h \
-  ..\..\libraries\rt-thread\include\rtthread.h \
-  ..\..\libraries\rt-thread\bsp\imxrt1064-nxp-evk\rtconfig.h \
-  ..\..\libraries\rt-thread\include\rtdebug.h \
-  ..\..\libraries\rt-thread\include\rtdef.h \
-  ..\..\libraries\rt-thread\include\rtservice.h \
-  ..\..\libraries\rt-thread\include\rtm.h \
-  ..\..\libraries\rt-thread\components\finsh\finsh.h \
-  ..\code\task_manager.h ..\code\position.h ..\code\pid.h \
-  ..\code\filter.h
+  ..\..\libraries\sdk\board\clock_config.h ..\code\pid.h \
+  ..\code\filter.h ..\code\task_manager.h ..\code\imu660ra_ahrs.h \
+  ..\code\motor.h ..\code\kinematics.h ..\code\uart_receiver.h \
+  ..\code\uart4_recognition.h

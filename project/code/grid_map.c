@@ -1,8 +1,7 @@
 #include "planner.h"
-#include <string.h>
 #include <math.h>
-#include <stdio.h>
-
+#include "position.h"
+#include "encoder.h"
 // 计算点到线段的最短距离（内部函数）
 static float point_to_segment_distance(float px, float py, float x1, float y1, float x2, float y2) {
     float vx = x2 - x1;
@@ -72,7 +71,7 @@ void grid_to_world(int gx, int gy, float* wx, float* wy) {
 }
 
 /**
- * 从文本地图加载（用于调试）
+ * 从文本地图加载
  */
 void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* state) {
     // 清空网格
@@ -91,14 +90,14 @@ void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* stat
             while (*p == '\n' || *p == '\r') p++;
             char ch = *p++;
 
-            // 图像坐标（用于标记 occupancy）
+            // 图像坐标（用于标记 occupancy 和生成运动坐标）
             float img_x = (col + 0.5f) * CELL_SIZE;
             float img_y = (row + 0.5f) * CELL_SIZE;
-            // 运动坐标（用于存储到 GameState）
-            float motion_x = img_y;
-            float motion_y = img_x;
+            // 运动坐标（通过标准转换函数获取，现为恒等映射）
+            float motion_x, motion_y;
+            image_to_motion(img_x, img_y, &motion_x, &motion_y);
 
-            // 细网格范围
+            // 细网格范围（基于图像坐标的行列）
             int base_x = col * 4;
             int base_y = row * 4;
 
@@ -106,10 +105,14 @@ void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* stat
                 // 墙体：存储为运动坐标矩形
                 if (state->num_walls < MAX_WALLS) {
                     Wall* w = &state->walls[state->num_walls];
-                    w->x1 = row * CELL_SIZE;          // 运动 x = 图像 y
-                    w->y1 = col * CELL_SIZE;          // 运动 y = 图像 x
-                    w->x2 = (row + 1) * CELL_SIZE;
-                    w->y2 = (col + 1) * CELL_SIZE;
+                    // 墙体左上角图像坐标
+                    float wall_img_x1 = col * CELL_SIZE;
+                    float wall_img_y1 = row * CELL_SIZE;
+                    float wall_img_x2 = (col + 1) * CELL_SIZE;
+                    float wall_img_y2 = (row + 1) * CELL_SIZE;
+                    // 转换为运动坐标存储
+                    image_to_motion(wall_img_x1, wall_img_y1, &w->x1, &w->y1);
+                    image_to_motion(wall_img_x2, wall_img_y2, &w->x2, &w->y2);
                     state->num_walls++;
                 }
                 // 标记细网格为墙体（使用图像坐标）
@@ -128,7 +131,7 @@ void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* stat
                     Box* b = &state->boxes[state->num_boxes];
                     b->x = motion_x;
                     b->y = motion_y;
-                    // 计算 grid 坐标（可选，用于某些地方）
+                    // 计算 grid 坐标（基于图像坐标）
                     float img_for_grid_x, img_for_grid_y;
                     motion_to_image(b->x, b->y, &img_for_grid_x, &img_for_grid_y);
                     world_to_grid(img_for_grid_x, img_for_grid_y, &b->grid_x, &b->grid_y);
@@ -184,7 +187,23 @@ void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* stat
                     b->target_id = -1;
                     state->num_bombs++;
                 }
-                // 炸弹不占据网格，不标记 occupancy
+                // 标记细网格为炸弹（障碍物）
+                for (int dy = 0; dy < 4; dy++)
+                    for (int dx = 0; dx < 4; dx++) {
+                        int fx = base_x + dx;
+                        int fy = base_y + dy;
+                        if (fx < FINE_COLS && fy < FINE_ROWS)
+                            grid_map->occupancy[fy][fx] = OCC_BOMB;
+                    }
+            } else if (ch == 'P') {
+                // 小车位置
+                float img_x_car = (col + 0.5f) * CELL_SIZE;
+                float img_y_car = (row + 0.5f) * CELL_SIZE;
+                float motion_x_car, motion_y_car;
+                image_to_motion(img_x_car, img_y_car, &motion_x_car, &motion_y_car);
+                Position_Set(motion_x_car, motion_y_car, 0.0f);
+                EncoderReset();
+                // P 所在网格为空地，无其他标记
             } else if (ch == '-') {
                 // 空地，已经默认为 OCC_FREE，无需额外标记
             }
@@ -196,7 +215,7 @@ void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* stat
 }
 
 /**
- * 从物体坐标列表加载地图（用于OpenART摄像头数据）
+* 从物体坐标列表加载地图（用于OpenART摄像头数据）
  * 数据格式：
  *   field_width, field_height: 场地尺寸（米）
  *   walls: 数组，每4个float为一组 (x1,y1,x2,y2)
@@ -476,6 +495,18 @@ void explode_bomb(GameState* state, GridMap* map, int bomb_id) {
     }
     state->num_walls = kept;
 
+    // 清除炸弹自身占据格
+    {
+        int col = (int)(bomb->x / CELL_SIZE);
+        int row = (int)(bomb->y / CELL_SIZE);
+        int base_x = col * 4, base_y = row * 4;
+        for (int dy = 0; dy < 4; dy++)
+            for (int dx = 0; dx < 4; dx++) {
+                int fx = base_x + dx, fy = base_y + dy;
+                if (fx < map->width && fy < map->height)
+                    map->occupancy[fy][fx] = OCC_FREE;
+            }
+    }
     bomb->active = 0;
     create_inflated_cost_map(map, state, 2.0f);
 }
@@ -491,14 +522,12 @@ void refresh_grid_map(GameState* state, GridMap* map) {
         }
     }
 
-    // 标记墙体（运动坐标转图像坐标）
+    // 标记墙体（物体坐标即图像坐标）
     for (int i = 0; i < state->num_walls; i++) {
         Wall* w = &state->walls[i];
-        // 将墙体左上角运动坐标转换为图像坐标
-        float img_x, img_y;
-        motion_to_image(w->x1, w->y1, &img_x, &img_y);
-        int col = (int)(img_x / CELL_SIZE + 0.5f);
-        int row = (int)(img_y / CELL_SIZE + 0.5f);
+        // 直接使用运动坐标计算粗网格行列
+        int col = (int)(w->x1 / CELL_SIZE);
+        int row = (int)(w->y1 / CELL_SIZE);
         int base_x = col * 4;
         int base_y = row * 4;
         for (int dy = 0; dy < 4; dy++) {
@@ -512,15 +541,13 @@ void refresh_grid_map(GameState* state, GridMap* map) {
         }
     }
 
-    // 标记未完成的箱子（运动坐标转图像坐标）
+    // 标记未完成的箱子
     for (int i = 0; i < state->num_boxes; i++) {
         if (state->boxes[i].state == 0) {
-            float img_x, img_y;
-            motion_to_image(state->boxes[i].x, state->boxes[i].y, &img_x, &img_y);
-            int br = (int)(img_y / CELL_SIZE);
-            int bc = (int)(img_x / CELL_SIZE);
-            int base_x = bc * 4;
-            int base_y = br * 4;
+            int col = (int)(state->boxes[i].x / CELL_SIZE);
+            int row = (int)(state->boxes[i].y / CELL_SIZE);
+            int base_x = col * 4;
+            int base_y = row * 4;
             for (int dy = 0; dy < 4; dy++) {
                 for (int dx = 0; dx < 4; dx++) {
                     int fx = base_x + dx;
@@ -533,22 +560,34 @@ void refresh_grid_map(GameState* state, GridMap* map) {
         }
     }
 
-    // 标记目的地（运动坐标转图像坐标）
+    // 标记活跃炸弹
+    for (int i = 0; i < state->num_bombs; i++) {
+        if (state->bombs[i].active) {
+            int col = (int)(state->bombs[i].x / CELL_SIZE);
+            int row = (int)(state->bombs[i].y / CELL_SIZE);
+            int base_x = col * 4;
+            int base_y = row * 4;
+            for (int dy = 0; dy < 4; dy++)
+                for (int dx = 0; dx < 4; dx++) {
+                    int fx = base_x + dx;
+                    int fy = base_y + dy;
+                    if (fx >= 0 && fx < map->width && fy >= 0 && fy < map->height)
+                        map->occupancy[fy][fx] = OCC_BOMB;
+                }
+        }
+    }
+
+    // 标记目的地（跳过已到达的）
     for (int i = 0; i < state->num_destinations; i++) {
         Destination* dest = &state->destinations[i];
-        // 如果该目的地已被分配且对应的箱子已推，则跳过（消失）
         if (dest->assigned_box_id >= 0) {
             Box* box = &state->boxes[dest->assigned_box_id];
-            if (box->state == 1) {
-                continue;   // 目的地已被覆盖且箱子已推，不显示
-            }
+            if (box->state == 1) continue;   // 箱子已到达，目的地消失
         }
-        float img_x, img_y;
-        motion_to_image(dest->x, dest->y, &img_x, &img_y);
-        int dr = (int)(img_y / CELL_SIZE);
-        int dc = (int)(img_x / CELL_SIZE);
-        int base_x = dc * 4;
-        int base_y = dr * 4;
+        int col = (int)(dest->x / CELL_SIZE);
+        int row = (int)(dest->y / CELL_SIZE);
+        int base_x = col * 4;
+        int base_y = row * 4;
         for (int dy = 0; dy < 4; dy++) {
             for (int dx = 0; dx < 4; dx++) {
                 int fx = base_x + dx;
@@ -561,21 +600,18 @@ void refresh_grid_map(GameState* state, GridMap* map) {
     }
 
     // 生成代价地图
-    create_inflated_cost_map(map, state, 2.0f);
+    create_inflated_cost_map(map, state, 0.12f);  // 建议增大膨胀半径
 
-    // 修复：每次刷新后，最后强制所有目标点细网格为 OCC_DEST（彻底防止被覆盖）
+    // 二次强制标记目的地，防止被其他物体覆盖
     for (int i = 0; i < state->num_destinations; i++) {
         Destination* dest = &state->destinations[i];
-        // 跳过已覆盖的（箱子已到达）
         if (dest->assigned_box_id >= 0 && state->boxes[dest->assigned_box_id].state == 1) {
             continue;
         }
-        float img_x, img_y;
-        motion_to_image(dest->x, dest->y, &img_x, &img_y);
-        int dr = (int)(img_y / CELL_SIZE);
-        int dc = (int)(img_x / CELL_SIZE);
-        int base_x = dc * 4;
-        int base_y = dr * 4;
+        int col = (int)(dest->x / CELL_SIZE);
+        int row = (int)(dest->y / CELL_SIZE);
+        int base_x = col * 4;
+        int base_y = row * 4;
         for (int dy = 0; dy < 4; dy++) {
             for (int dx = 0; dx < 4; dx++) {
                 int fx = base_x + dx;
@@ -586,21 +622,13 @@ void refresh_grid_map(GameState* state, GridMap* map) {
             }
         }
     }
-
-    // 调试打印（可选）
-    if (map && map->width > 30 && map->height > 2) {
-        printf("[refresh_grid_map] map->occupancy[2][30]=%d\n", map->occupancy[2][30]);
-    }
 }
-// 坐标转换：运动坐标 (mx, my) 与图像坐标 (wx_img, wy_img) 直接对应
-// 运动坐标 -> 图像坐标
 void motion_to_image(float mx, float my, float* wx, float* wy) {
-    *wx = my;   // 图像 x = 运动 y
-    *wy = mx;   // 图像 y = 运动 x
+    *wx = mx;   
+    *wy = my;   
 }
 
-// 图像坐标 -> 运动坐标
 void image_to_motion(float wx, float wy, float* mx, float* my) {
-    *mx = wy;   // 运动 x = 图像 y
-    *my = wx;   // 运动 y = 图像 x
-}    
+    *mx = wx;   
+    *my = wy;   
+}

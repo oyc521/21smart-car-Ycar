@@ -530,16 +530,6 @@
               <FilePath>..\code\uart_receiver.h</FilePath>
             </File>
             <File>
-              <FileName>uart2_recognition.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\uart2_recognition.c</FilePath>
-            </File>
-            <File>
-              <FileName>uart2_recognition.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\uart2_recognition.h</FilePath>
-            </File>
-            <File>
               <FileName>mapping.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\mapping.c</FilePath>
@@ -558,6 +548,26 @@
               <FileName>task_manager.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\task_manager.h</FilePath>
+            </File>
+            <File>
+              <FileName>uart4_recognition.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\uart4_recognition.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart4_recognition.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\uart4_recognition.h</FilePath>
+            </File>
+            <File>
+              <FileName>debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>debug.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\debug.h</FilePath>
             </File>
           </Files>
         </Group>

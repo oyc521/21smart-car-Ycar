@@ -114,4 +114,4 @@
   ..\..\libraries\rt-thread\components\finsh\finsh.h ..\code\pid.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h ..\code\filter.h \
   ..\code\motor.h ..\code\kinematics.h ..\code\encoder.h \
-  ..\code\planner.h ..\code\imu660ra_ahrs.h
+  ..\code\planner.h ..\code\imu660ra_ahrs.h ..\code\hybrid_controller.h

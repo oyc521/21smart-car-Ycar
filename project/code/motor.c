@@ -149,10 +149,10 @@ static void UpdateMotorSpeeds(void)
     }
     
     float filtered[3] = {
-        car_ctrl.motors[0].speed_filtered,
-        car_ctrl.motors[1].speed_filtered,
-        car_ctrl.motors[2].speed_filtered
-    };
+    car_ctrl.motors[2].speed_filtered,  // 0° 轮
+    car_ctrl.motors[1].speed_filtered,  // 120° 轮
+    car_ctrl.motors[0].speed_filtered   // 240° 轮
+};
     Kinematics_Forward(filtered, 
                       &car_ctrl.current_vx,
                       &car_ctrl.current_vy,
@@ -162,20 +162,11 @@ static void UpdateMotorSpeeds(void)
 /**
  * @brief 停止车体
  */
-void CarController_Stop(void)
-{
-    CarController_SetSpeed(0, 0, 0);
-    float speed_threshold = 0.05f;
-    while (fabsf(car_ctrl.current_vx) > speed_threshold ||
-           fabsf(car_ctrl.current_vy) > speed_threshold ||
-           fabsf(car_ctrl.current_omega) > speed_threshold * 2) {
-        CarController_Update();
-        rt_thread_mdelay(10);
-    }
+void CarController_Stop(void) {
+    CarController_SetSpeed(0, 0, 0);   // 只设目标速度，立即返回
 }
-
 /**
- * @brief 设置电机PWM（最终驱动函数）
+ * @brief 设置电机PWM（最终驱动函数）千万别改！！！
  */
 static void SetMotorPWM(int motor_id, float pwm_duty)
 {
@@ -286,71 +277,28 @@ void PIDController_Reset(int motor_id)
     PID_Reset(&car_ctrl.motors[motor_id].pid);
 }
 
+
 /**
- * @brief 测试：正方形路径
+ * @brief 重置所有轮速 PID 的积分和误差历史
  */
-void Test_Square(float side_length, float speed)
+void MotorController_ResetWheelPIDs(void)
 {
-    //rt_kprintf("\n=== Square Test: side=%.2fm, speed=%.2fm/s ===\n", side_length, speed);
-    for (int i = 0; i < 4; i++) {
-        //rt_kprintf("Side %d: Forward %.2fm\n", i + 1, side_length);
-        CarController_SetSpeed(speed, 0, 0);
-        float move_time = side_length / speed * 1000;
-        uint32_t start_time = rt_tick_get();
-        while (rt_tick_get() - start_time < move_time) {
-            CarController_Update();
-            rt_thread_mdelay(10);
-        }
-        CarController_Stop();
-        rt_thread_mdelay(500);
-        
-        //rt_kprintf("Side %d: Rotate 90 degrees\n", i + 1);
-        float rotate_speed = M_PI / 2.0f;
-        CarController_SetSpeed(0, 0, rotate_speed);
-        start_time = rt_tick_get();
-        while (rt_tick_get() - start_time < 1000) {
-            CarController_Update();
-            rt_thread_mdelay(10);
-        }
-        CarController_Stop();
-        rt_thread_mdelay(500);
+    for (int i = 0; i < 3; i++) {
+        PID_Reset(&wheel_pid[i]);
     }
-    rt_kprintf("=== Square Test Completed ===\n");
 }
 
 /**
- * @brief 测试：旋转
+ * @brief 临时设置所有轮速 PID 的积分系数（推动时用于关闭积分）
+ * @param ki 新的 KI 值，0 表示关闭积分
  */
-void Test_Rotation(float angle_deg, float speed_deg_per_sec)
+void MotorController_SetWheelKI(float ki)
 {
-    //rt_kprintf("\n=== Rotation Test: angle=%.1f°, speed=%.1f°/s ===\n", angle_deg, speed_deg_per_sec);
-    float angle_rad = angle_deg * M_PI / 180.0f;
-    float speed_rad_per_sec = speed_deg_per_sec * M_PI / 180.0f;
-    CarController_SetSpeed(0, 0, speed_rad_per_sec);
-    float rotate_time = fabsf(angle_rad / speed_rad_per_sec) * 1000;
-    uint32_t start_time = rt_tick_get();
-    while (rt_tick_get() - start_time < rotate_time) {
-        CarController_Update();
-        rt_thread_mdelay(10);
+    for (int i = 0; i < 3; i++) {
+        wheel_pid[i].ki = ki;
+        // 改变 KI 后务必重置积分，避免突变
+        PID_Reset(&wheel_pid[i]);
     }
-    CarController_Stop();
-    //rt_kprintf("=== Rotation Test Completed ===\n");
-}
-
-/**
- * @brief 测试：基本运动
- */
-void Test_Movement(float vx, float vy, float omega, float duration_ms)
-{
-    //rt_kprintf("\n=== Movement Test: vx=%.2f, vy=%.2f, ω=%.2f, time=%.0fms ===\n", vx, vy, omega, duration_ms);
-    CarController_SetSpeed(vx, vy, omega);
-    uint32_t start_time = rt_tick_get();
-    while (rt_tick_get() - start_time < duration_ms) {
-        CarController_Update();
-        rt_thread_mdelay(10);
-    }
-    CarController_Stop();
-    //rt_kprintf("=== Movement Test Completed ===\n");
 }
 
 /**

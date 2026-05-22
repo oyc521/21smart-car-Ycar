@@ -1,153 +1,636 @@
+/*
+ * ========== 新增结构体字段（需添加到 hybrid_controller.h） ==========
+ *   在 HybridController 结构体中增加：
+ *     int path_target_idx;      // 状态化追踪：当前要追踪的路径点索引
+ *
+ * ==================== 切线航向使用注意事项 ====================
+ * 当前推箱子/炸弹阶段使用锁航向模式（use_tangent_heading = 0），
+ * 车头固定，平移跟踪路径。
+ *
+ * 若后续希望启用切线航向（车头自动跟随路径方向），需要：
+ *   1. 在 PlanSokoban / PlanBomb 中将 ctrl->use_tangent_heading 设为 1
+ *   2. 在 follow_path 的切线航向分支中，对计算出的目标角度取反并归一化：
+ *         target_yaw_deg = atan2f(dy, dx) * 180.0f / M_PI;
+ *         target_yaw_deg = -target_yaw_deg;   // 取反（陀螺仪正方向定义导致）
+ *         while (target_yaw_deg > 180.0f) target_yaw_deg -= 360.0f;
+ *         while (target_yaw_deg < -180.0f) target_yaw_deg += 360.0f;
+ *   3. 重新测试转向方向，若仍反则将取反操作去除即可
+ * =================================================================
+ */
 #include "hybrid_controller.h"
 #include <math.h>
-#include <string.h>
-#include <stdio.h>
-#include "kinematics.h"
 #include <rtthread.h>
+#include "position.h"
 #include "task_manager.h"
 #include "zf_device_wireless_uart.h"
-#include "position.h"
-// 外部函数声明（来自规划模块）
-void world_to_grid(float wx, float wy, int* gx, int* gy);
-void grid_to_world(int gx, int gy, float* wx, float* wy);
-int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal_y,
-                    int* out_path_x, int* out_path_y, int max_path_len, AStarParams* params);
-void refresh_grid_map(GameState* state, GridMap* map);
-void explode_bomb(GameState* state, GridMap* map, int bomb_id);
+#include "imu660ra_ahrs.h"
+#include "motor.h"
+#include "uart_receiver.h"
+#include "uart4_recognition.h"
 
-// 推箱子规划器
-int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
-                       float car_x, float car_y, int* out_actions, int max_actions);
-int actions_to_world_path(GameState* state, GridMap* grid_map, int box_id,
-                          float start_car_x, float start_car_y,
-                          const int* actions, int action_count,
-                          float* out_x, float* out_y, int max_len);
-
-// 炸弹规划器（来自 bomb_planner.c）
-int light_push_plan(GridMap* map, int start_r, int start_c, int goal_r, int goal_c,
-                    int car_start_r, int car_start_c, int* out_actions, int max_actions);
-int bomb_actions_to_world_path(GameState* state, GridMap* grid_map, int bomb_id,
-                               float start_car_x, float start_car_y,
-                               const int* actions, int action_count,
-                               float* out_x, float* out_y, int max_len);
-
-static int g_plan_actions[200];
-#define PATH_DIR_MODE 0
-
+/* 外部全局变量 */
 extern uint8_t need_map_update;
 extern TaskManager g_task_mgr;
+extern Position_t position;
+extern CarController_t car_ctrl;
+extern rt_mutex_t g_map_mutex;
+extern void BeepOnce(void);
+extern PIDParam_t angle_trace_param;
 
-// 将图像坐标系下的动作转换为运动坐标系下的动作
-static int convert_action_to_motion(int action) {
-    static const int motion_map[8] = {
-        3,   // 0 (UP)    -> LEFT (3)
-        0,   // 1 (RIGHT) -> UP (0)
-        1,   // 2 (DOWN)  -> RIGHT (1)
-        2,   // 3 (LEFT)  -> DOWN (2)
-        7,   // 4 (PUSH_UP)    -> PUSH_LEFT (7)
-        4,   // 5 (PUSH_RIGHT) -> PUSH_UP (4)
-        5,   // 6 (PUSH_DOWN)  -> PUSH_RIGHT (5)
-        6    // 7 (PUSH_LEFT)  -> PUSH_DOWN (6)
-    };
-    if (action >= 0 && action < 8) return motion_map[action];
-    return action;
+/* ========== 导航模式切换（0=A*细网格，1=BFS粗网格纯轴向） ========== */
+#ifndef USE_MANHATTAN_NAV
+#define USE_MANHATTAN_NAV  0
+#endif
+#ifndef PUSH_INTERP_STEP
+#define PUSH_INTERP_STEP   RESOLUTION
+#endif
+
+/* 坐标转换函数 */
+extern void world_to_grid(float wx, float wy, int* gx, int* gy);
+extern void grid_to_world(int gx, int gy, float* wx, float* wy);
+extern int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal_y,
+                           int* out_path_x, int* out_path_y, int max_path_len, AStarParams* params);
+extern void refresh_grid_map(GameState* state, GridMap* map);
+extern void explode_bomb(GameState* state, GridMap* map, int bomb_id);
+extern int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
+                              float car_x, float car_y, int* out_actions, int max_actions);
+extern int light_push_plan(GridMap* map, int start_r, int start_c, int goal_r, int goal_c,
+                           int car_start_r, int car_start_c, int* out_actions, int max_actions);
+
+/* ========== 辅助函数 ========== */
+static float angle_diff(float target, float current) {
+    float diff = target - current;
+    while (diff > 180.0f) diff -= 360.0f;
+    while (diff < -180.0f) diff += 360.0f;
+    return diff;
 }
 
-static int find_coarse_adjacent_target(GameState* state, GridMap* grid_map, int box_id,
-                                       float* out_x, float* out_y) {
-    Box* box = &state->boxes[box_id];
-    float car_x = position.x_m;
-    float car_y = position.y_m;
-    int box_r = (int)(box->x / CELL_SIZE);
-    int box_c = (int)(box->y / CELL_SIZE);
-    const int dr[4] = {-1, 1, 0, 0};
-    const int dc[4] = {0, 0, -1, 1};
-    float best_dist = 1e9;
-    int best_nr = -1, best_nc = -1;
+/* 查找物体周围空闲粗网格（用于炸弹站位） */
+static int find_adjacent_free_cell(float obj_x, float obj_y, GridMap* grid_map,
+                                   float* out_x, float* out_y) {
+    float img_x, img_y;
+    motion_to_image(obj_x, obj_y, &img_x, &img_y);
+    int obj_r = (int)(img_y / CELL_SIZE);
+    int obj_c = (int)(img_x / CELL_SIZE);
+    const int dr[4] = {-1, 0, 1, 0};
+    const int dc[4] = {0, 1, 0, -1};
     for (int d = 0; d < 4; d++) {
-        int nr = box_r + dr[d];
-        int nc = box_c + dc[d];
+        int nr = obj_r + dr[d];
+        int nc = obj_c + dc[d];
         if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) continue;
-        // 检查空闲
-        int img_r = nc;
-        int img_c = nr;
-        int base_x = img_c * 4;
-        int base_y = img_r * 4;
+        int base_x = nc * 4;
+        int base_y = nr * 4;
         int blocked = 0;
-        for (int dy = 0; dy < 4 && !blocked; dy++) {
-            for (int dx = 0; dx < 4; dx++) {
-                uint8_t occ = grid_map->occupancy[base_y + dy][base_x + dx];
-                if (occ == OCC_WALL || occ == OCC_BOX) {
+        for (int dy = 0; dy < 4 && !blocked; dy++)
+            for (int dx = 0; dx < 4; dx++)
+                if (grid_map->occupancy[base_y+dy][base_x+dx] == OCC_WALL ||
+                    grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOX ||
+                    grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOMB)
                     blocked = 1;
-                    break;
-                }
-            }
-        }
         if (!blocked) {
-            float target_x = (nr + 0.5f) * CELL_SIZE;
-            float target_y = (nc + 0.5f) * CELL_SIZE;
-            float dist = (target_x - car_x)*(target_x - car_x) + (target_y - car_y)*(target_y - car_y);
-            if (dist < best_dist) {
-                best_dist = dist;
-                best_nr = nr;
-                best_nc = nc;
-            }
+            float target_img_x = (nc + 0.5f) * CELL_SIZE;
+            float target_img_y = (nr + 0.5f) * CELL_SIZE;
+            image_to_motion(target_img_x, target_img_y, out_x, out_y);
+            return 1;
         }
     }
-    if (best_nr >= 0) {
-        *out_x = (best_nr + 0.5f) * CELL_SIZE;
-        *out_y = (best_nc + 0.5f) * CELL_SIZE;
+    return 0;
+}
+
+/* 炸弹几何站位查找（辅助 EvaluateBestStance） */
+static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
+                                   int push_dir, float* out_x, float* out_y) {
+    const int dr[4] = {-1, 0, 1, 0};
+    const int dc[4] = {0, 1, 0, -1};
+    const int opposite[4] = {2, 3, 0, 1};
+    int back_dir = opposite[push_dir];
+
+    float img_x, img_y;
+    motion_to_image(bomb_x, bomb_y, &img_x, &img_y);
+    int bomb_c = (int)(img_x / CELL_SIZE);
+    int bomb_r = (int)(img_y / CELL_SIZE);
+    int nr = bomb_r + dr[back_dir];
+    int nc = bomb_c + dc[back_dir];
+    if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) return 0;
+
+    int base_x = nc * 4, base_y = nr * 4;
+    for (int dy = 0; dy < 4; dy++)
+        for (int dx = 0; dx < 4; dx++)
+            if (map->occupancy[base_y+dy][base_x+dx] != OCC_FREE)
+                return 0;
+
+    float new_img_x = (nc + 0.5f) * CELL_SIZE;
+    float new_img_y = (nr + 0.5f) * CELL_SIZE;
+    image_to_motion(new_img_x, new_img_y, out_x, out_y);
+    return 1;
+}
+
+/* 识别站位查找（查表法） */
+/*
+ * 识别站位后退策略调试说明：
+ * 
+ * 1. 识别站位自动后退 RECOG_STANDOFF_DISTANCE 米（默认0.10m），
+ *    确保与目标保持足够距离，避免视野受限。
+ * 
+ * 2. 调节方法：
+ *    - 若OpenArt视野仍受限或识别失败率高，可适当增大该值（如0.12～0.15m）。
+ *    - 若因场地狭窄导致某些方向无法找到安全站位，可适当减小该值（如0.08m）。
+ *    - 修改后需观察串口输出，确认站位是否仍在可行区域内。
+ * 
+ * 3. 新站位安全检查：
+ *    - 函数会验证后退后新站位所在的细网格（4x4）是否完全空闲，
+ *      若被墙壁或箱子占据则放弃该方向，尝试下一个相邻方向。
+ *    - 若所有方向均不满足，函数返回0，触发识别失败重试流程。
+ * 
+ * 4. 查表角度 yaw_table 根据实际 AHRS 0° 方向定义，
+ *    当前设定：0°为右，Y向下为正，对应角度 {90°, 0°, -90°, 180°}。
+ *    若发现识别时车头朝向错误，请检查此处角度映射。
+ */
+#define RECOG_STANDOFF_DISTANCE  0.0f
+static int find_adjacent_for_recog(GridMap* map, int target_c, int target_r,
+                                   float* out_x, float* out_y, float* out_yaw)
+{
+    const int dr[4] = {-1, 0, 1, 0};   // 上, 右, 下, 左
+    const int dc[4] = {0, 1, 0, -1};
+    // 查表：对应方向的角度（0°为右，Y向下为正）
+    const float yaw_table[4] = {90.0f, 0.0f, -90.0f, 180.0f};
+    // 方向反向量（用于后退），即从目标指向站位的方向
+    const float back_dir_x[4] = {0.0f, -1.0f, 0.0f, 1.0f};
+    const float back_dir_y[4] = {1.0f, 0.0f, -1.0f, 0.0f};
+
+    for (int d = 0; d < 4; d++) {
+        int nr = target_r + dr[d];
+        int nc = target_c + dc[d];
+        if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) continue;
+
+        // 第一步：检查相邻网格是否空闲（原有逻辑）
+        int base_x = nc * 4;
+        int base_y = nr * 4;
+        int blocked = 0;
+        for (int dy = 0; dy < 4 && !blocked; dy++)
+            for (int dx = 0; dx < 4; dx++)
+                if (map->occupancy[base_y+dy][base_x+dx] == OCC_WALL ||
+                    map->occupancy[base_y+dy][base_x+dx] == OCC_BOX ||
+                    map->occupancy[base_y+dy][base_x+dx] == OCC_BOMB)
+                    blocked = 1;
+        if (blocked) continue;
+
+        // 第二步：计算原始站位（相邻网格中心）
+        float raw_img_x = (nc + 0.5f) * CELL_SIZE;
+        float raw_img_y = (nr + 0.5f) * CELL_SIZE;
+        float raw_motion_x, raw_motion_y;
+        image_to_motion(raw_img_x, raw_img_y, &raw_motion_x, &raw_motion_y);
+
+        // 第三步：沿目标反方向后退 RECOG_STANDOFF_DISTANCE 米
+        float new_motion_x = raw_motion_x + back_dir_x[d] * RECOG_STANDOFF_DISTANCE;
+        float new_motion_y = raw_motion_y + back_dir_y[d] * RECOG_STANDOFF_DISTANCE;
+
+        // 第四步：将新站位转换回图像坐标，检查其所在细网格区域是否空闲
+        float new_img_x, new_img_y;
+        motion_to_image(new_motion_x, new_motion_y, &new_img_x, &new_img_y);
+        int new_c = (int)(new_img_x / CELL_SIZE);
+        int new_r = (int)(new_img_y / CELL_SIZE);
+
+        // 边界保护
+        if (new_r < 0 || new_r >= MAP_ROWS || new_c < 0 || new_c >= MAP_COLS) continue;
+
+        int new_base_x = new_c * 4;
+        int new_base_y = new_r * 4;
+        int new_blocked = 0;
+        for (int dy = 0; dy < 4 && !new_blocked; dy++)
+            for (int dx = 0; dx < 4; dx++)
+                if (map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_WALL ||
+                    map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_BOX ||
+                    map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_BOMB)
+                    new_blocked = 1;
+        if (new_blocked) continue;
+
+        // 第五步：输出新站位和航向
+        *out_x = new_motion_x;
+        *out_y = new_motion_y;
+        *out_yaw = yaw_table[d];
         return 1;
     }
     return 0;
 }
 
-static int is_straight_path_safe(GridMap* grid_map, float x1, float y1, float x2, float y2) {
-    float dx = x2 - x1;
-    float dy = y2 - y1;
-    float dist = sqrtf(dx*dx + dy*dy);
-    if (dist < 1e-3f) return 1;
-    int num_samples = (int)(dist / (RESOLUTION * 0.5f)) + 2;
-    for (int i = 0; i <= num_samples; i++) {
-        float t = (float)i / num_samples;
-        float wx = x1 + t * dx;
-        float wy = y1 + t * dy;
-        int gx, gy;
-        world_to_grid(wx, wy, &gx, &gy);
-        if (gx < 0 || gx >= grid_map->width || gy < 0 || gy >= grid_map->height) return 0;
-        uint8_t occ = grid_map->occupancy[gy][gx];
-        if (occ == OCC_WALL || occ == OCC_BOX) return 0;
+/* ========== 公共：最优站位评估 ========== */
+int EvaluateBestStance(GameState* state, GridMap* grid_map,
+                       int obj_id, int obj_type,
+                       float bomb_target_x, float bomb_target_y,
+                       float* out_stand_x, float* out_stand_y,
+                       int* out_actions, int* out_count) {
+    if (obj_type == OBJ_BOMB && !state->bombs[obj_id].active) return 0;
+
+    float obj_x, obj_y;
+    if (obj_type == OBJ_BOX) {
+        obj_x = state->boxes[obj_id].x;
+        obj_y = state->boxes[obj_id].y;
+    } else {
+        obj_x = state->bombs[obj_id].x;
+        obj_y = state->bombs[obj_id].y;
     }
+
+    /* 箱子：临时清除自身细网格 */
+    uint8_t saved[4][4] = {0};
+    int saved_flag = 0;
+    if (obj_type == OBJ_BOX) {
+        if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
+        float img_x, img_y;
+        motion_to_image(obj_x, obj_y, &img_x, &img_y);
+        int obj_c = (int)(img_x / RESOLUTION);
+        int obj_r = (int)(img_y / RESOLUTION);
+        for (int dy = 0; dy < 4; dy++)
+            for (int dx = 0; dx < 4; dx++) {
+                int r = obj_r + dy, c = obj_c + dx;
+                if (r < FINE_ROWS && c < FINE_COLS) {
+                    saved[dy][dx] = grid_map->occupancy[r][c];
+                    grid_map->occupancy[r][c] = OCC_FREE;
+                }
+            }
+        if (g_map_mutex) rt_mutex_release(g_map_mutex);
+        saved_flag = 1;
+    }
+
+    const int dr[4] = {-1,0,1,0};
+    const int dc[4] = {0,1,0,-1};
+    const int opposite[4] = {2,3,0,1};
+
+    int best_count = 0, best_steps = 999;
+    float best_x = 0, best_y = 0;
+    int best_actions[200];
+
+    /* 整体超时起点 */
+    uint32_t eval_start_tick = rt_tick_get();
+
+    for (int d = 0; d < 4; d++) {
+        /* --- 超时保护：超过 300ms 则放弃剩余方向 --- */
+        if (rt_tick_get() - eval_start_tick > 300) {
+            wireless_uart_send_string("[Eval] timeout, skip remaining directions\r\n");
+            break;
+        }
+
+        float stand_x, stand_y;
+        if (obj_type == OBJ_BOX) {
+            if (!find_coarse_adjacent_target(state, grid_map, obj_id,
+                                             &stand_x, &stand_y, d))
+                continue;
+        } else {
+            if (!find_bomb_stance_by_dir(grid_map, obj_x, obj_y, d, &stand_x, &stand_y))
+                continue;
+        }
+
+        int test_act[200], test_cnt = 0;
+        if (obj_type == OBJ_BOX) {
+            float stand_img_x, stand_img_y;
+            motion_to_image(stand_x, stand_y, &stand_img_x, &stand_img_y);
+
+            int sgx = (int)(stand_img_x / CELL_SIZE);
+            int sgy = (int)(stand_img_y / CELL_SIZE);
+            char buf[64];
+            rt_sprintf(buf, "[Eval] dir %d: stand grid (%d, %d)\r\n", d, sgx, sgy);
+            wireless_uart_send_string(buf);
+
+            test_cnt = light_sokoban_plan(state, grid_map, obj_id,
+                                          stand_img_x, stand_img_y, test_act, 200);
+        } else {
+            float bomb_img_x, bomb_img_y, target_img_x, target_img_y, car_img_x, car_img_y;
+            motion_to_image(obj_x, obj_y, &bomb_img_x, &bomb_img_y);
+            motion_to_image(bomb_target_x, bomb_target_y, &target_img_x, &target_img_y);
+            motion_to_image(stand_x, stand_y, &car_img_x, &car_img_y);
+            int br = (int)(bomb_img_y / CELL_SIZE), bc = (int)(bomb_img_x / CELL_SIZE);
+            int tr = (int)(target_img_y / CELL_SIZE), tc = (int)(target_img_x / CELL_SIZE);
+            int cr = (int)(car_img_y / CELL_SIZE), cc = (int)(car_img_x / CELL_SIZE);
+
+            char buf[64];
+            rt_sprintf(buf, "[Eval] bomb dir %d: stand grid (%d, %d)\r\n", d, cc, cr);
+            wireless_uart_send_string(buf);
+
+            test_cnt = light_push_plan(grid_map, br, bc, tr, tc, cr, cc, test_act, 200);
+            if (test_cnt > 0) {
+                for (int i = 0; i < test_cnt; i++) test_act[i] += 4;  // 转为推动编码
+            }
+        }
+
+        /* --- 步数保护：跳过路径过长的方向（最大150步） --- */
+        if (test_cnt > 150) {
+            char buf[64];
+            rt_sprintf(buf, "[Eval] dir %d ignored, steps=%d\r\n", d, test_cnt);
+            wireless_uart_send_string(buf);
+            continue;
+        }
+
+        if (test_cnt > 0 && test_cnt < best_steps) {
+            int expected_first = 4 + d;
+            if (test_act[0] == expected_first) {
+                best_steps = test_cnt;
+                best_x = stand_x; best_y = stand_y;
+                best_count = test_cnt;
+                memcpy(best_actions, test_act, test_cnt * sizeof(int));
+            }
+        }
+    }
+
+    /* 恢复箱子占据 */
+    if (saved_flag) {
+        if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
+        float img_x, img_y;
+        motion_to_image(obj_x, obj_y, &img_x, &img_y);
+        int obj_c = (int)(img_x / RESOLUTION);
+        int obj_r = (int)(img_y / RESOLUTION);
+        for (int dy = 0; dy < 4; dy++)
+            for (int dx = 0; dx < 4; dx++) {
+                int r = obj_r + dy, c = obj_c + dx;
+                if (r < FINE_ROWS && c < FINE_COLS)
+                    grid_map->occupancy[r][c] = saved[dy][dx];
+            }
+        if (g_map_mutex) rt_mutex_release(g_map_mutex);
+    }
+
+    if (best_count <= 0) return 0;
+
+    *out_stand_x = best_x;
+    *out_stand_y = best_y;
+    *out_count = best_count;
+    memcpy(out_actions, best_actions, best_count * sizeof(int));
     return 1;
 }
 
+/* ========== 粗网格 BFS 导航（纯轴向，无斜线） ========== */
+#if USE_MANHATTAN_NAV
+static int bfs_plan_path(HybridController* ctrl,
+                          float start_x, float start_y,
+                          float target_x, float target_y,
+                          float* out_path, int* out_len, int max_len) {
+    float start_img_x, start_img_y, target_img_x, target_img_y;
+    motion_to_image(start_x, start_y, &start_img_x, &start_img_y);
+    motion_to_image(target_x, target_y, &target_img_x, &target_img_y);
+
+    int sr = (int)(start_img_y / CELL_SIZE);
+    int sc = (int)(start_img_x / CELL_SIZE);
+    int gr = (int)(target_img_y / CELL_SIZE);
+    int gc = (int)(target_img_x / CELL_SIZE);
+    if (sr < 0) sr = 0; if (sr >= MAP_ROWS) sr = MAP_ROWS - 1;
+    if (sc < 0) sc = 0; if (sc >= MAP_COLS) sc = MAP_COLS - 1;
+    if (gr < 0) gr = 0; if (gr >= MAP_ROWS) gr = MAP_ROWS - 1;
+    if (gc < 0) gc = 0; if (gc >= MAP_COLS) gc = MAP_COLS - 1;
+
+    uint8_t obstacle[MAP_ROWS][MAP_COLS];
+    memset(obstacle, 0, sizeof(obstacle));
+    for (int r = 0; r < MAP_ROWS; r++) {
+        for (int c = 0; c < MAP_COLS; c++) {
+            int base_x = c * 4, base_y = r * 4;
+            for (int dy = 0; dy < 4; dy++)
+                for (int dx = 0; dx < 4; dx++)
+                    if (ctrl->grid_map->occupancy[base_y+dy][base_x+dx] == OCC_WALL ||
+                        ctrl->grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOX ||
+                        ctrl->grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOMB)
+                        { obstacle[r][c] = 1; goto next_cell; }
+            next_cell:;
+        }
+    }
+    obstacle[sr][sc] = 0; obstacle[gr][gc] = 0;
+
+    typedef struct { int8_t r, c; int16_t parent; int8_t action; } NavNode;
+    #define BFS_Q_SIZE (MAP_ROWS * MAP_COLS)
+    static NavNode queue[BFS_Q_SIZE];
+    static uint8_t visited[MAP_ROWS][MAP_COLS];
+    memset(visited, 0, sizeof(visited));
+    const int dr[4] = {-1,0,1,0}, dc[4] = {0,1,0,-1};
+
+    int head = 0, tail = 0, found = -1;
+    queue[tail].r = sr; queue[tail].c = sc;
+    queue[tail].parent = -1; queue[tail].action = -1; tail++;
+    visited[sr][sc] = 1;
+
+    while (head < tail && found < 0) {
+        NavNode cur = queue[head];
+        if (cur.r == gr && cur.c == gc) { found = head; break; }
+        for (int d = 0; d < 4; d++) {
+            int nr = cur.r + dr[d], nc = cur.c + dc[d];
+            if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) continue;
+            if (visited[nr][nc] || obstacle[nr][nc]) continue;
+            visited[nr][nc] = 1;
+            if (tail < BFS_Q_SIZE) {
+                queue[tail].r = nr; queue[tail].c = nc;
+                queue[tail].parent = head; queue[tail].action = d;
+                tail++;
+            }
+        }
+        head++;
+    }
+    if (found < 0) return 0;
+
+    int actions[200], act_cnt = 0, idx = found;
+    while (idx >= 0) {
+        if (queue[idx].action >= 0) actions[act_cnt++] = queue[idx].action;
+        idx = queue[idx].parent;
+    }
+    for (int i = 0; i < act_cnt/2; i++) {
+        int t = actions[i]; actions[i] = actions[act_cnt-1-i]; actions[act_cnt-1-i] = t;
+    }
+
+    float points[100][2]; int pt = 0;
+    float cx = start_img_x, cy = start_img_y, mx, my;
+    image_to_motion(cx, cy, &mx, &my);
+    points[pt][0] = mx; points[pt][1] = my; pt++;
+    for (int i = 0; i < act_cnt; i++) {
+        int d = actions[i];
+        if (d==0) cy -= CELL_SIZE; else if (d==1) cx += CELL_SIZE;
+        else if (d==2) cy += CELL_SIZE; else if (d==3) cx -= CELL_SIZE;
+        image_to_motion(cx, cy, &mx, &my);
+        if (pt < 100) { points[pt][0] = mx; points[pt][1] = my; pt++; }
+    }
+
+    int out = 0;
+    out_path[out*2+0] = points[0][0]; out_path[out*2+1] = points[0][1]; out++;
+    for (int i = 1; i < pt && out < max_len; i++) {
+        float dx = points[i][0] - points[i-1][0];
+        float dy = points[i][1] - points[i-1][1];
+        float seg = sqrtf(dx*dx + dy*dy);
+        int steps = (int)(seg / PUSH_INTERP_STEP);
+        if (steps < 1) steps = 1;
+        float sx = dx/steps, sy = dy/steps;
+        for (int j = 1; j <= steps && out < max_len; j++) {
+            out_path[out*2+0] = points[i-1][0] + sx*j;
+            out_path[out*2+1] = points[i-1][1] + sy*j;
+            if (j == steps) { out_path[out*2+0] = points[i][0]; out_path[out*2+1] = points[i][1]; }
+            out++;
+        }
+    }
+    *out_len = out;
+    return 1;
+}
+#endif
+
+/* ========== 公共：导航到任意点 ========== */
+int HybridController_PlanPathToPoint(HybridController* ctrl,
+                                     float start_x, float start_y,
+                                     float target_x, float target_y) {
+#if USE_MANHATTAN_NAV
+    float path[MAX_PATH_POINTS * 2];
+    int plen;
+    if (!bfs_plan_path(ctrl, start_x, start_y, target_x, target_y, path, &plen, MAX_PATH_POINTS))
+        return 0;
+    for (int i = 0; i < plen; i++) {
+        ctrl->current_path[i][0] = path[i*2+0];
+        ctrl->current_path[i][1] = path[i*2+1];
+    }
+    ctrl->path_len = plen;
+    ctrl->path_target_idx = 1;
+    ctrl->axial_tracking = 1;
+#else
+    float start_ix, start_iy, target_ix, target_iy;
+    motion_to_image(start_x, start_y, &start_ix, &start_iy);
+    motion_to_image(target_x, target_y, &target_ix, &target_iy);
+    int start_gx, start_gy, goal_gx, goal_gy;
+    world_to_grid(start_ix, start_iy, &start_gx, &start_gy);
+    world_to_grid(target_ix, target_iy, &goal_gx, &goal_gy);
+
+    int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
+    AStarParams params = {5000, 2.0f};
+    int len = astar_plan_path(ctrl->grid_map, start_gx, start_gy, goal_gx, goal_gy,
+                              path_x, path_y, MAX_PATH_POINTS, &params);
+    if (len <= 0) return 0;
+    for (int i = 0; i < len; i++) {
+        float wx, wy;
+        grid_to_world(path_x[i], path_y[i], &wx, &wy);
+        image_to_motion(wx, wy, &ctrl->current_path[i][0], &ctrl->current_path[i][1]);
+    }
+    ctrl->path_len = len;
+    ctrl->path_target_idx = 1;
+    ctrl->axial_tracking = 0;
+#endif
+    ctrl->path_following = 1;
+    ctrl->path_purpose = PATH_PURPOSE_NAV_TO_BOX;
+    ctrl->use_tangent_heading = 0;
+    ctrl->path_locked_yaw = 0.0f;
+    ctrl->push_smoothed_speed = 0.0f;
+    ctrl->stuck_start_tick = 0;
+    ctrl->path_stuck_counter = 0;
+    PID_Reset(&angle_trace_param);
+    ctrl->mode = CTRL_MODE_PATH_FOLLOWING;
+    return 1;
+}
+
+/* ========== 公共：生成推动路径（原子直线段，带细插值） ========== */
+int HybridController_PlanPushPath(HybridController* ctrl,
+                                  float start_x, float start_y,
+                                  int* actions, int action_count) {
+    if (action_count <= 0) return 0;
+    float cur_x = start_x, cur_y = start_y;
+    int pt = 0;
+    // 第一个点设为当前小车位置
+    ctrl->current_path[pt][0] = cur_x;
+    ctrl->current_path[pt][1] = cur_y;
+    pt++;
+
+    for (int i = 0; i < action_count; i++) {
+        int dir = actions[i] - 4;  // 0~3
+        float dx = 0, dy = 0;
+        if (dir == 0)      dy = -CELL_SIZE;
+        else if (dir == 1) dx =  CELL_SIZE;
+        else if (dir == 2) dy =  CELL_SIZE;
+        else if (dir == 3) dx = -CELL_SIZE;
+
+        float target_x = cur_x + dx;
+        float target_y = cur_y + dy;
+
+        // 细插值：按 PUSH_INTERP_STEP 步长插入中间点
+        float seg_len = CELL_SIZE;  // 0.2m
+        int steps = (int)(seg_len / PUSH_INTERP_STEP);
+        if (steps < 1) steps = 1;
+        float step_dx = dx / steps;
+        float step_dy = dy / steps;
+
+        for (int j = 1; j <= steps; j++) {
+            if (pt >= MAX_PATH_POINTS) break;
+            cur_x += step_dx;
+            cur_y += step_dy;
+            ctrl->current_path[pt][0] = cur_x;
+            ctrl->current_path[pt][1] = cur_y;
+            pt++;
+        }
+        // 修正累积误差，强制对齐到目标网格中心
+        cur_x = target_x;
+        cur_y = target_y;
+    }
+
+    if (pt < 2) return 0;
+    ctrl->path_len = pt;
+    ctrl->path_target_idx = 1;
+    ctrl->path_following = 1;
+    ctrl->path_purpose = PATH_PURPOSE_PUSH_STANCE;
+    ctrl->use_tangent_heading = 0;
+    ctrl->path_locked_yaw = 0.0f;
+    ctrl->push_smoothed_speed = 0.0f;
+    ctrl->stuck_start_tick = 0;
+    ctrl->path_stuck_counter = 0;
+    PID_Reset(&angle_trace_param);
+    ctrl->mode = CTRL_MODE_PATH_FOLLOWING;
+    return 1;
+}
+
+/* ========== 公共：寻找箱子起推点（新签名） ========== */
+int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
+                                int box_id, float* out_x, float* out_y,
+                                int preferred_dir) {
+    Box* box = &state->boxes[box_id];
+    float box_img_x, box_img_y;
+    motion_to_image(box->x, box->y, &box_img_x, &box_img_y);
+    int box_r = (int)(box_img_y / CELL_SIZE);
+    int box_c = (int)(box_img_x / CELL_SIZE);
+    const int dr[4] = {-1, 0, 1, 0};
+    const int dc[4] = {0, 1, 0, -1};
+    const int opposite[4] = {2, 3, 0, 1};
+
+    // 优先推动方向的对侧
+    if (preferred_dir >= 0 && preferred_dir < 4) {
+        int back_dir = opposite[preferred_dir];
+        int nr = box_r + dr[back_dir];
+        int nc = box_c + dc[back_dir];
+        if (nr >= 0 && nr < MAP_ROWS && nc >= 0 && nc < MAP_COLS) {
+            int base_x = nc * 4, base_y = nr * 4;
+            int blocked = 0;
+            for (int dy = 0; dy < 4 && !blocked; dy++)
+                for (int dx = 0; dx < 4; dx++)
+                    if (grid_map->occupancy[base_y+dy][base_x+dx] == OCC_WALL ||
+                        grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOX ||
+                        grid_map->occupancy[base_y+dy][base_x+dx] == OCC_BOMB)
+                        blocked = 1;
+            if (!blocked) {
+                float target_img_x = (nc + 0.5f) * CELL_SIZE;
+                float target_img_y = (nr + 0.5f) * CELL_SIZE;
+                image_to_motion(target_img_x, target_img_y, out_x, out_y);
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+/* ========== 路径跟踪（保留速度平滑&旧版卡死检测） ========== */
 static int find_nearest_point_on_path(const float path[][2], int len, float x, float y, float* min_dist) {
     int idx = 0;
     *min_dist = 1e9f;
     for (int i = 0; i < len; i++) {
-        float dx = path[i][0] - x;
-        float dy = path[i][1] - y;
+        float dx = path[i][0] - x, dy = path[i][1] - y;
         float d = dx*dx + dy*dy;
-        if (d < *min_dist) {
-            *min_dist = d;
-            idx = i;
-        }
+        if (d < *min_dist) { *min_dist = d; idx = i; }
     }
     *min_dist = sqrtf(*min_dist);
     return idx;
 }
 
 static void get_lookahead_point(const float path[][2], int len, int start_idx,
-                                float x, float y, float lookahead, float* out_x, float* out_y) {
+                                float lookahead, float* out_x, float* out_y) {
     if (start_idx >= len - 1) {
-        *out_x = path[len-1][0];
-        *out_y = path[len-1][1];
+        *out_x = path[len-1][0]; *out_y = path[len-1][1];
         return;
     }
     float cumulative = 0.0f;
     for (int i = start_idx; i < len - 1; i++) {
-        float seg_len = sqrtf((path[i+1][0]-path[i][0])*(path[i+1][0]-path[i][0]) +
-                              (path[i+1][1]-path[i][1])*(path[i+1][1]-path[i][1]));
+        float seg_len = sqrtf(powf(path[i+1][0]-path[i][0], 2) + powf(path[i+1][1]-path[i][1], 2));
         if (cumulative + seg_len >= lookahead) {
             float ratio = (lookahead - cumulative) / seg_len;
             *out_x = path[i][0] + ratio * (path[i+1][0] - path[i][0]);
@@ -156,638 +639,364 @@ static void get_lookahead_point(const float path[][2], int len, int start_idx,
         }
         cumulative += seg_len;
     }
-    *out_x = path[len-1][0];
-    *out_y = path[len-1][1];
+    *out_x = path[len-1][0]; *out_y = path[len-1][1];
 }
 
 int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angle,
                 float* vx, float* vy, float* omega, float* dist_to_end) {
+    if (ctrl->use_tangent_heading)
+        AnglePID_SwitchMode(2);
+    else
+        AnglePID_SwitchMode(0);
+
     if (ctrl->path_len < 2) return 0;
 
+    float total_len = 0.0f;
+    for (int i = 0; i < ctrl->path_len - 1; i++) {
+        total_len += sqrtf(powf(ctrl->current_path[i+1][0]-ctrl->current_path[i][0], 2) +
+                           powf(ctrl->current_path[i+1][1]-ctrl->current_path[i][1], 2));
+    }
+
+    float current_yaw = position.yaw_rad * RAD_TO_DEG;
+
+    /* 短路径处理（<0.5m） */
+    if (total_len < 0.5f) {
+        float dx = ctrl->current_path[ctrl->path_len-1][0] - car_x;
+        float dy = ctrl->current_path[ctrl->path_len-1][1] - car_y;
+        float dist_err = sqrtf(dx*dx + dy*dy);
+        *dist_to_end = dist_err;
+
+        if (dist_err < ctrl->path_tolerance) {
+            *vx = *vy = *omega = 0;
+            return 1;
+        }
+
+        float desired_speed = fminf(ctrl->max_speed, 2.5f * dist_err);
+        desired_speed = fmaxf(ctrl->min_speed, desired_speed);
+        *vx = desired_speed * dx / dist_err;
+        *vy = desired_speed * dy / dist_err;
+        if (ctrl->axial_tracking) {
+            float ax = fabsf(dx), ay = fabsf(dy);
+            if (ax > ay) *vy = 0.0f; else *vx = 0.0f;
+        }
+
+        float target_yaw_deg = ctrl->path_locked_yaw;  // 固定0°
+        float yaw_error = angle_diff(target_yaw_deg, current_yaw);
+        if (fabsf(yaw_error) < 3.0f) yaw_error = 0.0f;
+        float omega_corr_deg = PD(&angle_trace_param, 0, yaw_error);
+        float max_omega_nav = 25.0f;
+        if (omega_corr_deg > max_omega_nav) omega_corr_deg = max_omega_nav;
+        else if (omega_corr_deg < -max_omega_nav) omega_corr_deg = -max_omega_nav;
+        *omega = omega_corr_deg * DEG_TO_RAD;
+
+        // 缓启动平滑
+        {
+            float max_accel = 0.002f;
+            if (desired_speed > ctrl->push_smoothed_speed) {
+                ctrl->push_smoothed_speed += max_accel;
+                if (ctrl->push_smoothed_speed > desired_speed)
+                    ctrl->push_smoothed_speed = desired_speed;
+            } else {
+                ctrl->push_smoothed_speed = desired_speed;
+            }
+            if (desired_speed > 1e-3f) {
+                *vx = (*vx / desired_speed) * ctrl->push_smoothed_speed;
+                *vy = (*vy / desired_speed) * ctrl->push_smoothed_speed;
+            } else {
+                *vx = *vy = 0;
+            }
+        }
+        return 1;
+    }
+
+    /* 长路径处理 */
     float min_dist;
     int nearest = find_nearest_point_on_path(ctrl->current_path, ctrl->path_len, car_x, car_y, &min_dist);
-    *dist_to_end = sqrtf((ctrl->current_path[ctrl->path_len-1][0] - car_x) *
-                         (ctrl->current_path[ctrl->path_len-1][0] - car_x) +
-                         (ctrl->current_path[ctrl->path_len-1][1] - car_y) *
-                         (ctrl->current_path[ctrl->path_len-1][1] - car_y));
+    *dist_to_end = sqrtf(powf(ctrl->current_path[ctrl->path_len-1][0] - car_x, 2) +
+                         powf(ctrl->current_path[ctrl->path_len-1][1] - car_y, 2));
 
     float target_x, target_y;
-    if (ctrl->path_len == 2 || *dist_to_end < 0.5f) {
-        target_x = ctrl->current_path[ctrl->path_len-1][0];
-        target_y = ctrl->current_path[ctrl->path_len-1][1];
-    } else {
-        float lookahead = ctrl->lookahead_dist;
-        if (ctrl->enable_adaptive_lookahead) {
-            lookahead = fmaxf(ctrl->min_lookahead,
-                              fminf(ctrl->max_lookahead,
-                                    ctrl->lookahead_dist + 0.2f * min_dist));
-        }
-        get_lookahead_point(ctrl->current_path, ctrl->path_len, nearest,
-                            car_x, car_y, lookahead, &target_x, &target_y);
+    if (ctrl->path_target_idx < 0 || ctrl->path_target_idx >= ctrl->path_len)
+        ctrl->path_target_idx = nearest + 1;
+    if (ctrl->path_target_idx >= ctrl->path_len)
+        ctrl->path_target_idx = ctrl->path_len - 1;
+    {
+        float tdx = ctrl->current_path[ctrl->path_target_idx][0] - car_x;
+        float tdy = ctrl->current_path[ctrl->path_target_idx][1] - car_y;
+        if (sqrtf(tdx*tdx + tdy*tdy) < ctrl->path_tolerance &&
+            ctrl->path_target_idx < ctrl->path_len - 1)
+            ctrl->path_target_idx++;
     }
+    target_x = ctrl->current_path[ctrl->path_target_idx][0];
+    target_y = ctrl->current_path[ctrl->path_target_idx][1];
 
     float dx = target_x - car_x;
     float dy = target_y - car_y;
     float dist_err = sqrtf(dx*dx + dy*dy);
-
-    // 调试打印：输出起点、目标点、位移差（单位毫米）
-    /*char dbg[128];
-    rt_sprintf(dbg, "follow: car=(%d,%d) target=(%d,%d) dx=%d dy=%d dist_err=%d\r\n",
-               (int)(car_x*1000), (int)(car_y*1000),
-               (int)(target_x*1000), (int)(target_y*1000),
-               (int)(dx*1000), (int)(dy*1000), (int)(dist_err*1000));
-    wireless_uart_send_string(dbg);*/
-
     if (dist_err < 1e-3f) {
-        *vx = 0; *vy = 0; *omega = 0;
+        *vx = *vy = *omega = 0;
         return 1;
     }
 
-    float dir_x = dx / dist_err;
-    float dir_y = dy / dist_err;
     float desired_speed = fminf(ctrl->max_speed, 1.5f * dist_err);
     desired_speed = fmaxf(ctrl->min_speed, desired_speed);
+    *vx = desired_speed * dx / dist_err;
+    *vy = desired_speed * dy / dist_err;
+    if (ctrl->axial_tracking) {
+        float ax = fabsf(dx), ay = fabsf(dy);
+        if (ax > ay) *vy = 0.0f; else *vx = 0.0f;
+    }
 
-    // 确保 PATH_DIR_MODE 未定义，以使用标准方向映射
-    #ifdef PATH_DIR_MODE
-        #if PATH_DIR_MODE == 0
-            *vx = desired_speed * dir_x;
-            *vy = desired_speed * dir_y;
-        #elif PATH_DIR_MODE == 1
-            *vx = desired_speed * dir_y;
-            *vy = desired_speed * dir_x;
-        #elif PATH_DIR_MODE == 2
-            *vx = -desired_speed * dir_x;
-            *vy = desired_speed * dir_y;
-        #elif PATH_DIR_MODE == 3
-            *vx = desired_speed * dir_x;
-            *vy = -desired_speed * dir_y;
-        #elif PATH_DIR_MODE == 4
-            *vx = -desired_speed * dir_x;
-            *vy = -desired_speed * dir_y;
-        #endif
-    #else
-        *vx = desired_speed * dir_x;
-        *vy = desired_speed * dir_y;
-    #endif
+    float target_yaw_deg = ctrl->path_locked_yaw;
+    float yaw_error = angle_diff(target_yaw_deg, current_yaw);
+    if (fabsf(yaw_error) < 3.0f) yaw_error = 0.0f;
+    float omega_corr_deg = PD(&angle_trace_param, 0, yaw_error);
+    float max_omega_nav = 25.0f;
+    if (omega_corr_deg > max_omega_nav) omega_corr_deg = max_omega_nav;
+    else if (omega_corr_deg < -max_omega_nav) omega_corr_deg = -max_omega_nav;
+    *omega = omega_corr_deg * DEG_TO_RAD;
 
-    // 打印最终速度指令
-    /*rt_sprintf(dbg, "follow: vx=%d vy=%d omega=%d\r\n",
-               (int)(*vx*1000), (int)(*vy*1000), (int)(*omega*1000));
-    wireless_uart_send_string(dbg);*/
+    // 缓启动平滑
+    {
+        float max_accel = 0.002f;
+        if (desired_speed > ctrl->push_smoothed_speed) {
+            ctrl->push_smoothed_speed += max_accel;
+            if (ctrl->push_smoothed_speed > desired_speed)
+                ctrl->push_smoothed_speed = desired_speed;
+        } else {
+            ctrl->push_smoothed_speed = desired_speed;
+        }
+        if (desired_speed > 1e-3f) {
+            *vx = (*vx / desired_speed) * ctrl->push_smoothed_speed;
+            *vy = (*vy / desired_speed) * ctrl->push_smoothed_speed;
+        } else {
+            *vx = *vy = 0;
+        }
+    }
 
     return 1;
 }
 
-static void computeVisualAlignControl(HybridController* ctrl,
-                                      float car_x, float car_y, float car_angle,
-                                      float target_x, float target_y,
-                                      float* out_vx, float* out_vy, float* out_omega) {
-    float dx = target_x - car_x;
-    float dy = target_y - car_y;
-    float target_angle = atan2f(dy, dx);
-    float angle_error = target_angle - car_angle;
-    while (angle_error > M_PI) angle_error -= 2*M_PI;
-    while (angle_error < -M_PI) angle_error += 2*M_PI;
+/* 卡死检测（推动段跳过） */
+static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, float car_angle) {
+    if (ctrl->path_purpose == PATH_PURPOSE_PUSH_STANCE)
+        return;
 
-    const float ANGLE_TOLERANCE_VAL = 0.1f;   // 避免与宏冲突
-    if (fabsf(angle_error) < ANGLE_TOLERANCE_VAL) {
-        *out_vx = 0; *out_vy = 0; *out_omega = 0;
-        ctrl->visual_align_complete = 1;
+    uint32_t now = rt_tick_get();
+    if (ctrl->stuck_start_tick == 0) {
+        ctrl->stuck_start_tick = now;
+        ctrl->stuck_start_pos[0] = car_x;
+        ctrl->stuck_start_pos[1] = car_y;
+        ctrl->stuck_start_angle = car_angle;
         return;
     }
 
-    float Kp_angle = 2.0f;
-    float max_omega = 1.0f;
-    float omega = Kp_angle * angle_error;
-    if (omega > max_omega) omega = max_omega;
-    if (omega < -max_omega) omega = -max_omega;
+    float total_disp = sqrtf(powf(car_x - ctrl->stuck_start_pos[0], 2) +
+                             powf(car_y - ctrl->stuck_start_pos[1], 2));
+    float total_angle = fabsf(car_angle - ctrl->stuck_start_angle);
+    if (total_angle > M_PI) total_angle = 2*M_PI - total_angle;
 
-    *out_vx = 0;
-    *out_vy = 0;
-    *out_omega = omega;
-}
-
-static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, float car_angle, float dt) {
-    float disp = sqrtf((car_x - ctrl->last_path_pos[0])*(car_x - ctrl->last_path_pos[0]) +
-                       (car_y - ctrl->last_path_pos[1])*(car_y - ctrl->last_path_pos[1]));
-    float angle_change = fabsf(car_angle - ctrl->last_path_angle);
-    if (angle_change > M_PI) angle_change = 2*M_PI - angle_change;
-
-    if (disp < 0.01f && angle_change < 0.01f) {
-        ctrl->path_stuck_counter++;
-    } else {
-        ctrl->path_stuck_counter = 0;
-    }
-
-    ctrl->last_path_pos[0] = car_x;
-    ctrl->last_path_pos[1] = car_y;
-    ctrl->last_path_angle = car_angle;
-
-    if (ctrl->path_stuck_counter > ctrl->path_stuck_threshold) {
-        rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-        ctrl->path_stuck_counter = 0;
-    }
-}
-
-void apply_push(HybridController* ctrl, int box_id, int action) {
-    char buf[128];
-    rt_sprintf(buf, "apply_push: box=%d, action=%d\r\n", box_id, action);
-    wireless_uart_send_string(buf);
-
-    // 获取小车当前位置（运动坐标）
-    extern Position_t position;
-    float car_x = position.x_m;
-    float car_y = position.y_m;
-
-    float dx = 0, dy = 0;
-    switch (action) {
-        case ACTION_PUSH_UP:    dx = CELL_SIZE; dy = 0; break;   // 向前推
-        case ACTION_PUSH_DOWN:  dx = -CELL_SIZE; dy = 0; break;  // 向后推
-        case ACTION_PUSH_LEFT:  dx = 0; dy = -CELL_SIZE; break;  // 向左推
-        case ACTION_PUSH_RIGHT: dx = 0; dy = CELL_SIZE; break;   // 向右推
-        default: return;
-    }
-
-    // 计算箱子新位置：小车前方一格
-    float new_box_x = car_x + dx;
-    float new_box_y = car_y + dy;
-
-    Box* box = &ctrl->game_state->boxes[box_id];
-    rt_sprintf(buf, "Before push: box=(%d,%d), car=(%d,%d)\r\n",
-               (int)(box->x*1000), (int)(box->y*1000),
-               (int)(car_x*1000), (int)(car_y*1000));
-    wireless_uart_send_string(buf);
-
-    // 更新箱子坐标
-    box->x = new_box_x;
-    box->y = new_box_y;
-    // 对齐到网格中心（可选）
-    int r = (int)(box->y / CELL_SIZE);
-    int c = (int)(box->x / CELL_SIZE);
-    box->x = (c + 0.5f) * CELL_SIZE;
-    box->y = (r + 0.5f) * CELL_SIZE;
-
-    rt_sprintf(buf, "After push: box=(%d,%d)\r\n", (int)(box->x*1000), (int)(box->y*1000));
-    wireless_uart_send_string(buf);
-    refresh_grid_map(ctrl->game_state, ctrl->grid_map);
-}
-static int check_box_at_destination(HybridController* ctrl, int box_id) {
-    if (box_id < 0 || box_id >= ctrl->game_state->num_boxes) return 0;
-    Box* box = &ctrl->game_state->boxes[box_id];
-    if (box->dest_id < 0) return 0;
-    int box_r = (int)(box->y / CELL_SIZE);
-    int box_c = (int)(box->x / CELL_SIZE);
-    int dest_r = (int)(ctrl->game_state->destinations[box->dest_id].y / CELL_SIZE);
-    int dest_c = (int)(ctrl->game_state->destinations[box->dest_id].x / CELL_SIZE);
-    
-    if (box_r == dest_r && box_c == dest_c) {
-        int base_x = box_c * 4;
-        int base_y = box_r * 4;
-        for (int dy = 0; dy < 4; dy++) {
-            for (int dx = 0; dx < 4; dx++) {
-                int fx = base_x + dx;
-                int fy = base_y + dy;
-                if (fx >= 0 && fx < ctrl->grid_map->width && fy >= 0 && fy < ctrl->grid_map->height) {
-                    ctrl->grid_map->occupancy[fy][fx] = OCC_DEST;
-                }
-            }
+    if (now - ctrl->stuck_start_tick > 2000) {
+        if (total_disp < 0.02f && total_angle < 0.05f) {
+            CarController_Stop();          // 非阻塞设置速度为零
+            ctrl->mode = CTRL_MODE_IDLE;
+            ctrl->path_following = 0;
+            ctrl->complete_reason = CTRL_COMPLETE_FAIL_STUCK;
+            rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
         }
-        box->state = 1;
-        need_map_update = 1;
-        return 1;
+        ctrl->stuck_start_tick = 0;
+    } else {
+        if (total_disp > 0.03f || total_angle > 0.05f) {
+            ctrl->stuck_start_tick = 0;
+        }
     }
-    return 0;
 }
 
-// ---------- 公有函数 ----------
+/* ========== 初始化和重置 ========== */
 void HybridController_Init(HybridController* ctrl, GridMap* grid_map, GameState* game_state) {
     memset(ctrl, 0, sizeof(HybridController));
     ctrl->mode = CTRL_MODE_IDLE;
     ctrl->grid_map = grid_map;
     ctrl->game_state = game_state;
 
-    ctrl->lookahead_dist = 0.3f;
-    ctrl->min_lookahead = 0.15f;
-    ctrl->max_lookahead = 0.5f;
-    ctrl->max_speed = 0.25f;
-    ctrl->min_speed = 0.02f;
-    ctrl->path_tolerance = 0.15f;
-    ctrl->enable_adaptive_lookahead = 1;
-
+    ctrl->lookahead_dist = LOOKAHEAD_DIST;
+    ctrl->min_lookahead  = MIN_LOOKAHEAD;
+    ctrl->max_lookahead  = MAX_LOOKAHEAD;
+    ctrl->max_speed      = NAV_SPEED_MAX;
+    ctrl->min_speed      = MIN_SPEED;
+    ctrl->path_tolerance = PATH_TOLERANCE;
+    ctrl->enable_adaptive_lookahead = ENABLE_ADAPTIVE_LOOKAHEAD;
     ctrl->path_stuck_threshold = 300;
-    ctrl->max_push_retries = 5;
-    ctrl->plan_interval = 0.5f;
-    ctrl->last_plan_time = 0.0f;
+
+    ctrl->push_speed_max = PUSH_SPEED_MAX_DFL;
+
+    ctrl->current_box_id = -1;
+    ctrl->current_bomb_id = -1;
     ctrl->is_bomb_path = 0;
+
+    ctrl->path_purpose = PATH_PURPOSE_NAV_TO_BOX;
+    ctrl->complete_reason = CTRL_COMPLETE_SUCCESS;
+
+    ctrl->recog_pending = 0;
+    ctrl->recog_target_id = -1;
+    ctrl->use_tangent_heading = 0;
+    ctrl->path_locked_yaw = 0.0f;
+    ctrl->push_smoothed_speed = 0.0f;
+
+    ctrl->precomputed_count = 0;
+
+    // 新增成员初始化（需要在结构体中添加）
+    ctrl->stop_start_tick = 0;
+    ctrl->pending_path_purpose = PATH_PURPOSE_NAV_TO_BOX;
 }
 
-int HybridController_PlanPathToBox(HybridController* ctrl, float start_x, float start_y, int box_id) {
-    if (box_id < 0 || box_id >= ctrl->game_state->num_boxes) return 0;
-    
-    float target_x, target_y;
-    if (!find_coarse_adjacent_target(ctrl->game_state, ctrl->grid_map, box_id, &target_x, &target_y)) {
-        return 0;
-    }
-
-    char buf[128];
-    rt_sprintf(buf, "PlanPath: target motion (%d,%d)\r\n", (int)(target_x*1000), (int)(target_y*1000));
-    wireless_uart_send_string(buf);
-    
-    float start_img_x, start_img_y, target_img_x, target_img_y;
-    motion_to_image(start_x, start_y, &start_img_x, &start_img_y);
-    motion_to_image(target_x, target_y, &target_img_x, &target_img_y);
-    
-    
-    int start_gx, start_gy, goal_gx, goal_gy;
-    world_to_grid(start_img_x, start_img_y, &start_gx, &start_gy);
-    world_to_grid(target_img_x, target_img_y, &goal_gx, &goal_gy);
-    
-    
-    int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-    AStarParams params = {5000, 2.0f};
-    int len = astar_plan_path(ctrl->grid_map, start_gx, start_gy, goal_gx, goal_gy,
-                              path_x, path_y, MAX_PATH_POINTS, &params);
-    
-    
-    if (len > 0) {
-        rt_sprintf(buf, "first path point: (%d,%d) last: (%d,%d)\r\n",
-                   path_x[0], path_y[0], path_x[len-1], path_y[len-1]);
-        wireless_uart_send_string(buf);
-        
-        for (int i = 0; i < len; i++) {
-            float wx, wy;
-            grid_to_world(path_x[i], path_y[i], &wx, &wy);
-            float mx, my;
-            image_to_motion(wx, wy, &mx, &my);
-            ctrl->current_path[i][0] = mx;
-            ctrl->current_path[i][1] = my;
-        }
-        
-        rt_sprintf(buf, "first motion: (%d,%d) last: (%d,%d)\r\n",
-                   (int)(ctrl->current_path[0][0]*1000), (int)(ctrl->current_path[0][1]*1000),
-                   (int)(ctrl->current_path[len-1][0]*1000), (int)(ctrl->current_path[len-1][1]*1000));
-        wireless_uart_send_string(buf);
-        
-        ctrl->path_len = len;
-        ctrl->path_following = 1;
-        ctrl->current_box_id = box_id;
-        ctrl->mode = CTRL_MODE_PATH_FOLLOWING;
-        ctrl->is_bomb_path = 0;
-        ctrl->path_stuck_counter = 0;
-        return 1;
-    } else {
-        wireless_uart_send_string("A* planning failed\r\n");
-        return 0;
-    }
+void HybridController_Reset(HybridController* ctrl) {
+    GridMap*   saved_grid  = ctrl->grid_map;
+    GameState* saved_state = ctrl->game_state;
+    memset(ctrl, 0, sizeof(HybridController));
+    ctrl->grid_map   = saved_grid;
+    ctrl->game_state = saved_state;
+    HybridController_Init(ctrl, saved_grid, saved_state);
 }
 
-int HybridController_PlanBomb(HybridController* ctrl, int bomb_id, float car_x, float car_y,
-                              float target_x, float target_y) {
-    if (bomb_id < 0 || bomb_id >= ctrl->game_state->num_bombs) return 0;
-    Bomb* bomb = &ctrl->game_state->bombs[bomb_id];
-    if (!bomb->active) return 0;
-
-    float bomb_img_x, bomb_img_y, target_img_x, target_img_y, car_img_x, car_img_y;
-    motion_to_image(bomb->x, bomb->y, &bomb_img_x, &bomb_img_y);
-    motion_to_image(target_x, target_y, &target_img_x, &target_img_y);
-    motion_to_image(car_x, car_y, &car_img_x, &car_img_y);
-
-    int bomb_start_r = (int)(bomb_img_y / CELL_SIZE);
-    int bomb_start_c = (int)(bomb_img_x / CELL_SIZE);
-    int bomb_target_r = (int)(target_img_y / CELL_SIZE);
-    int bomb_target_c = (int)(target_img_x / CELL_SIZE);
-    int car_start_r = (int)(car_img_y / CELL_SIZE);
-    int car_start_c = (int)(car_img_x / CELL_SIZE);
-
-    int actions[200];
-    int action_count = light_push_plan(ctrl->grid_map,
-                                       bomb_start_r, bomb_start_c,
-                                       bomb_target_r, bomb_target_c,
-                                       car_start_r, car_start_c,
-                                       actions, 200);
-    if (action_count <= 0) return 0;
-
-    for (int i = 0; i < action_count; i++) {
-        actions[i] = convert_action_to_motion(actions[i]);
-    }
-
-    float path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-    int path_len = bomb_actions_to_world_path(ctrl->game_state, ctrl->grid_map, bomb_id,
-                                              car_img_x, car_img_y,
-                                              actions, action_count,
-                                              path_x, path_y, MAX_PATH_POINTS);
-    if (path_len <= 0) return 0;
-
-    for (int i = 0; i < path_len; i++) {
-        ctrl->current_path[i][0] = path_x[i];
-        ctrl->current_path[i][1] = path_y[i];
-    }
-    ctrl->path_len = path_len;
-    ctrl->path_following = 1;
-    ctrl->current_bomb_id = bomb_id;
-    ctrl->bomb_target_pos[0] = target_x;
-    ctrl->bomb_target_pos[1] = target_y;
-    ctrl->is_bomb_path = 1;
-    ctrl->mode = CTRL_MODE_PATH_FOLLOWING;
+/* ========== 识别导航（支持双模式切换） ========== */
+int HybridController_NavigateAndRecognize(HybridController* ctrl,
+                                          int target_grid_x, int target_grid_y,
+                                          RecognTargetType_t target_type, int target_id) {
+    if (ctrl->mode != CTRL_MODE_IDLE) return 0;
+    float target_x, target_y, target_yaw;
+    if (!find_adjacent_for_recog(ctrl->grid_map, target_grid_x, target_grid_y,
+                                  &target_x, &target_y, &target_yaw))
+        return 0;
+    float car_x = position.x_m, car_y = position.y_m;
+    // 复用 PlanPathToPoint（自动切换 A*/BFS）
+    if (!HybridController_PlanPathToPoint(ctrl, car_x, car_y, target_x, target_y))
+        return 0;
+    ctrl->path_purpose = PATH_PURPOSE_RECOG_STANCE;
+    ctrl->recog_pending = 1;
+    ctrl->recog_target_type = target_type;
+    ctrl->recog_target_id = target_id;
+    ctrl->recog_stand_x = target_x;
+    ctrl->recog_stand_y = target_y;
+    ctrl->recog_align_yaw = target_yaw;
+    ctrl->recog_original_yaw = position.yaw;
     return 1;
 }
 
-int HybridController_PlanSokoban(HybridController* ctrl, int box_id, float car_x, float car_y) {
-    char buf[128];
-    rt_sprintf(buf, "PlanSokoban called for box %d, car=(%d,%d)\r\n",
-               box_id, (int)car_x, (int)car_y);
-    wireless_uart_send_string(buf);
-
-    if (box_id < 0 || box_id >= ctrl->game_state->num_boxes) return 0;
-    Box* box = &ctrl->game_state->boxes[box_id];
-    if (box->dest_id < 0) return 0;
-
-    float car_img_x, car_img_y;
-    motion_to_image(car_x, car_y, &car_img_x, &car_img_y);
-
-    int actions[200];
-    int action_count = light_sokoban_plan(ctrl->game_state, ctrl->grid_map, box_id,
-                                          car_img_x, car_img_y, actions, 200);
-    if (action_count <= 0) {
-        wireless_uart_send_string("light_sokoban_plan failed\r\n");
-        return 0;
-    }
-
-    // 关键修改：直接使用原始动作，不再调用 convert_action_to_motion
-    for (int i = 0; i < action_count && i < MAX_SOKOBAN_ACTIONS; i++) {
-        ctrl->sokoban_actions[i] = actions[i];
-    }
-    ctrl->sokoban_action_count = action_count;
-    ctrl->sokoban_action_index = 0;
-    ctrl->sokoban_subpath_following = 0;
-    ctrl->current_box_id = box_id;
-    ctrl->mode = CTRL_MODE_SOKOBAN_EXECUTING;
-    wireless_uart_send_string("PlanSokoban success\r\n");
-    return 1;
-}
-
+/* ========== 控制状态机 ========== */
 void HybridController_ComputeControl(HybridController* ctrl,
                                      float car_x, float car_y, float car_angle,
                                      float dt, float current_time,
                                      float* out_vx, float* out_vy, float* out_omega) {
-    *out_vx = 0; *out_vy = 0; *out_omega = 0;
+    *out_vx = *out_vy = *out_omega = 0;
 
     switch (ctrl->mode) {
         case CTRL_MODE_IDLE:
             break;
 
-        case CTRL_MODE_PATH_FOLLOWING:
+        case CTRL_MODE_PATH_FOLLOWING: {
             if (!ctrl->path_following || ctrl->path_len == 0) {
                 ctrl->mode = CTRL_MODE_IDLE;
                 break;
             }
-
-            check_path_stuck(ctrl, car_x, car_y, car_angle, dt);
+            // 卡死检测
+            check_path_stuck(ctrl, car_x, car_y, car_angle);
 
             float dist_to_end;
-            int ret = follow_path(ctrl, car_x, car_y, car_angle, out_vx, out_vy, out_omega, &dist_to_end);
-            if (ret) {
-                if (dist_to_end < ctrl->path_tolerance) {
-                    ctrl->path_following = 0;
-                    *out_vx = 0; *out_vy = 0; *out_omega = 0;
-                    
-                    // 添加调试打印：路径终点到达
-                    char buf[128];
-                    rt_sprintf(buf, "Path end reached, is_bomb=%d, box_id=%d\r\n",
-                               ctrl->is_bomb_path, ctrl->current_box_id);
-                    wireless_uart_send_string(buf);
+            int ret = follow_path(ctrl, car_x, car_y, car_angle,
+                                  out_vx, out_vy, out_omega, &dist_to_end);
 
-                    if (ctrl->is_bomb_path) {
-                        explode_bomb(ctrl->game_state, ctrl->grid_map, ctrl->current_bomb_id);
-                        rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-                        ctrl->mode = CTRL_MODE_IDLE;
-                        ctrl->current_bomb_id = -1;
-                        ctrl->is_bomb_path = 0;
-                    } else if (ctrl->current_box_id >= 0) {
-                        rt_sprintf(buf, "Calling PlanSokoban for box %d\r\n", ctrl->current_box_id);
-                        wireless_uart_send_string(buf);
-                        if (!HybridController_PlanSokoban(ctrl, ctrl->current_box_id, car_x, car_y)) {
-                            wireless_uart_send_string("PlanSokoban failed\r\n");
-                            ctrl->mode = CTRL_MODE_IDLE;
-                            ctrl->current_box_id = -1;
-                        }
-                    } else {
-                        ctrl->mode = CTRL_MODE_IDLE;
-                    }
-                    // 发送空闲事件
+            if (ret && dist_to_end < ctrl->path_tolerance) {
+                ctrl->path_following = 0;
+                *out_vx = *out_vy = *out_omega = 0;
+                CarController_Stop();                     // 非阻塞
+                ctrl->mode = CTRL_MODE_STOPPING;
+                ctrl->stop_start_tick = rt_tick_get();
+                ctrl->pending_path_purpose = ctrl->path_purpose;
+            }
+            break;
+        }
+
+        case CTRL_MODE_STOPPING: {
+            float speed = sqrtf(car_ctrl.current_vx * car_ctrl.current_vx +
+                                car_ctrl.current_vy * car_ctrl.current_vy);
+            if (speed < 0.02f || (rt_tick_get() - ctrl->stop_start_tick > 300)) {
+                if (ctrl->pending_path_purpose == PATH_PURPOSE_PUSH_STANCE) {
+                    need_map_update = 1;
+                }
+                if (ctrl->pending_path_purpose == PATH_PURPOSE_RECOG_STANCE) {
+                    ctrl->mode = CTRL_MODE_RECOGNIZING;
+                } else {
+                    ctrl->mode = CTRL_MODE_IDLE;
                     rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
                 }
-            } else {
-                ctrl->mode = CTRL_MODE_IDLE;
-                rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
             }
+            *out_vx = *out_vy = *out_omega = 0;
             break;
-
-        case CTRL_MODE_VISUAL_ALIGNING:
-            computeVisualAlignControl(ctrl, car_x, car_y, car_angle,
-                                      ctrl->align_target_x, ctrl->align_target_y,
-                                      out_vx, out_vy, out_omega);
-            if (ctrl->visual_align_complete) {
-                ctrl->mode = CTRL_MODE_IDLE;
-                rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-            }
-            break;
-
-       case CTRL_MODE_SOKOBAN_EXECUTING:
-    if (ctrl->sokoban_action_index >= ctrl->sokoban_action_count) {
-        if (check_box_at_destination(ctrl, ctrl->current_box_id)) {
-            ctrl->mode = CTRL_MODE_IDLE;
-            ctrl->current_box_id = -1;
-            rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-        } else {
-            if (HybridController_PlanSokoban(ctrl, ctrl->current_box_id, car_x, car_y)) {
-                // 重新规划成功，继续执行
-            } else {
-                ctrl->mode = CTRL_MODE_IDLE;
-                ctrl->current_box_id = -1;
-                rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-            }
-        }
-        break;
-    }
-
-    if (!ctrl->sokoban_subpath_following) {
-        int action = ctrl->sokoban_actions[ctrl->sokoban_action_index];
-        int box_id = ctrl->current_box_id;
-        float box_x = ctrl->game_state->boxes[box_id].x;
-        float box_y = ctrl->game_state->boxes[box_id].y;
-
-        float target_x, target_y;
-        if (action >= ACTION_PUSH_UP) {
-            switch (action) {
-                case ACTION_PUSH_UP:    target_x = box_x; target_y = box_y + CELL_SIZE; break;
-                case ACTION_PUSH_DOWN:  target_x = box_x; target_y = box_y - CELL_SIZE; break;
-                case ACTION_PUSH_LEFT:  target_x = box_x + CELL_SIZE; target_y = box_y; break;
-                case ACTION_PUSH_RIGHT: target_x = box_x - CELL_SIZE; target_y = box_y; break;
-                default: target_x = box_x; target_y = box_y;
-            }
-        } else {
-            switch (action) {
-                case ACTION_UP:    target_x = box_x; target_y = box_y + CELL_SIZE; break;
-                case ACTION_DOWN:  target_x = box_x; target_y = box_y - CELL_SIZE; break;
-                case ACTION_LEFT:  target_x = box_x + CELL_SIZE; target_y = box_y; break;
-                case ACTION_RIGHT: target_x = box_x - CELL_SIZE; target_y = box_y; break;
-                default: target_x = box_x; target_y = box_y;
-            }
         }
 
-        ctrl->sokoban_target_pos[0] = target_x;
-        ctrl->sokoban_target_pos[1] = target_y;
-
-        refresh_grid_map(ctrl->game_state, ctrl->grid_map);
-
-        float car_img_x, car_img_y, target_img_x, target_img_y;
-        motion_to_image(car_x, car_y, &car_img_x, &car_img_y);
-        motion_to_image(target_x, target_y, &target_img_x, &target_img_y);
-
-        int start_gx, start_gy, goal_gx, goal_gy;
-        world_to_grid(car_img_x, car_img_y, &start_gx, &start_gy);
-        world_to_grid(target_img_x, target_img_y, &goal_gx, &goal_gy);
-
-        int path_x[MAX_PATH_POINTS], path_y[MAX_PATH_POINTS];
-        AStarParams params = {5000, 2.0f};
-        int len = astar_plan_path(ctrl->grid_map, start_gx, start_gy, goal_gx, goal_gy,
-                                  path_x, path_y, MAX_PATH_POINTS, &params);
-
-        char dbg[128];
-        rt_sprintf(dbg, "SOKOBAN: action=%d, A* len=%d\n", action, len);
-        wireless_uart_send_string(dbg);
-
-        // 如果A*规划失败，直接使用直线路径（不再检查安全性）
-        if (len <= 0) {
-            rt_sprintf(dbg, "A* failed, using straight line from (%d,%d) to (%d,%d)\n",
-                       (int)(car_x*1000), (int)(car_y*1000),
-                       (int)(target_x*1000), (int)(target_y*1000));
-            wireless_uart_send_string(dbg);
-            ctrl->sokoban_subpath[0][0] = car_x;
-            ctrl->sokoban_subpath[0][1] = car_y;
-            ctrl->sokoban_subpath[1][0] = target_x;
-            ctrl->sokoban_subpath[1][1] = target_y;
-            ctrl->sokoban_subpath_len = 2;
-        } else {
-            for (int i = 0; i < len; i++) {
-                float wx, wy;
-                grid_to_world(path_x[i], path_y[i], &wx, &wy);
-                float mx, my;
-                image_to_motion(wx, wy, &mx, &my);
-                ctrl->sokoban_subpath[i][0] = mx;
-                ctrl->sokoban_subpath[i][1] = my;
-            }
-            ctrl->sokoban_subpath_len = len;
-            rt_sprintf(dbg, "A* success, path len=%d\n", len);
-            wireless_uart_send_string(dbg);
-        }
-
-        // 确保起点为当前小车位置
-        if (ctrl->sokoban_subpath_len > 0) {
-            ctrl->sokoban_subpath[0][0] = car_x;
-            ctrl->sokoban_subpath[0][1] = car_y;
-        }
-
-        ctrl->sokoban_subpath_following = 1;
-    }
-
-    if (ctrl->sokoban_subpath_following) {
-        float saved_path[MAX_PATH_POINTS][2];
-        int saved_len = ctrl->path_len;
-        int saved_following = ctrl->path_following;
-        memcpy(saved_path, ctrl->current_path, sizeof(saved_path));
-
-        memcpy(ctrl->current_path, ctrl->sokoban_subpath, sizeof(float)*2*ctrl->sokoban_subpath_len);
-        ctrl->path_len = ctrl->sokoban_subpath_len;
-        ctrl->path_following = 1;
-
-        float dist_to_target;
-        follow_path(ctrl, car_x, car_y, car_angle, out_vx, out_vy, out_omega, &dist_to_target);
-
-        memcpy(ctrl->current_path, saved_path, sizeof(saved_path));
-        ctrl->path_len = saved_len;
-        ctrl->path_following = saved_following;
-
-        float dx = ctrl->sokoban_target_pos[0] - car_x;
-        float dy = ctrl->sokoban_target_pos[1] - car_y;
-        float dist_to_goal = sqrtf(dx*dx + dy*dy);
-
-        // 计算小车与箱子的实际距离
-        int box_id = ctrl->current_box_id;
-        float box_dx = ctrl->game_state->boxes[box_id].x - car_x;
-        float box_dy = ctrl->game_state->boxes[box_id].y - car_y;
-        float dist_to_box = sqrtf(box_dx*box_dx + box_dy*box_dy);
-
-        char dbg2[128];
-        rt_sprintf(dbg2, "SOKOBAN: dist_to_goal=%d mm, dist_to_box=%d mm, tol=%d mm\n",
-                   (int)(dist_to_goal*1000), (int)(dist_to_box*1000), (int)(ctrl->path_tolerance*1000));
-        wireless_uart_send_string(dbg2);
-
-        // 到达目标点 或 紧贴箱子（距离小于0.15米）时执行推动
-        if (dist_to_goal < ctrl->path_tolerance || dist_to_box < 0.15f) {
-            int action = ctrl->sokoban_actions[ctrl->sokoban_action_index];
-            rt_sprintf(dbg2, "SOKOBAN: reached target (dist=%d mm) or near box (dist=%d mm), action=%d\n",
-                       (int)(dist_to_goal*1000), (int)(dist_to_box*1000), action);
-            wireless_uart_send_string(dbg2);
-
-            if (action >= ACTION_PUSH_UP) {
-                if (ctrl->push_retry_count < ctrl->max_push_retries) {
-                    apply_push(ctrl, ctrl->current_box_id, action);
-                    ctrl->push_retry_count = 0;
-
-                    if (check_box_at_destination(ctrl, ctrl->current_box_id)) {
+        case CTRL_MODE_RECOGNIZING: {
+            static uint8_t step = 0;
+            static uint32_t timer = 0;
+            switch (step) {
+                case 0:
+                    AnglePID_SwitchMode(1);
+                    if (RotateToAngleIMU(ctrl->recog_align_yaw)) {
+                        step = 1; timer = rt_tick_get();
+                    } else {
+                        ctrl->recog_pending = 0;
                         ctrl->mode = CTRL_MODE_IDLE;
-                        ctrl->current_box_id = -1;
-                        ctrl->sokoban_action_index = ctrl->sokoban_action_count;
-                        rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
-                        break;
+                        rt_event_send(g_task_mgr.event, TASK_EVENT_RECOG_FAILED);
+                        step = 0;
                     }
-
-                    ctrl->sokoban_action_index++;
-                    ctrl->sokoban_subpath_following = 0;
-                } else {
-                    ctrl->sokoban_action_index++;
-                    ctrl->sokoban_subpath_following = 0;
-                    ctrl->push_retry_count = 0;
+                    break;
+                case 1:
+                    if (rt_tick_get() - timer > 500) step = 2;
+                    break;
+                case 2: {
+                    int success = 0;
+                    if (ctrl->recog_target_type == RECOG_TARGET_DEST) {
+                        int digit;
+                        success = uart4_request_digit(&digit);
+                        if (success) {
+                            Destination* dest = &ctrl->game_state->destinations[ctrl->recog_target_id];
+                            dest->required_digit = digit;
+                            dest->recognized = 1;
+                            g_digit_map[g_digit_map_count].digit = digit;
+                            g_digit_map[g_digit_map_count].dest_id = ctrl->recog_target_id;
+                            g_digit_map[g_digit_map_count].x = dest->x;
+                            g_digit_map[g_digit_map_count].y = dest->y;
+                            g_digit_map_count++;
+                        }
+                    } else if (ctrl->recog_target_type == RECOG_TARGET_BOX) {
+                        BoxTypeEnum_t type;
+                        success = uart4_request_box_type(&type);
+                        if (success) {
+                            ctrl->game_state->boxes[ctrl->recog_target_id].type = type;
+                            ctrl->game_state->boxes[ctrl->recog_target_id].recognized = 1;
+                        }
+                    }
+                    step = 3; timer = rt_tick_get();
+                    break;
                 }
-            } else {
-                ctrl->sokoban_action_index++;
-                ctrl->sokoban_subpath_following = 0;
+                case 3:
+                    AnglePID_SwitchMode(1);
+                    RotateToAngleIMU(ctrl->recog_original_yaw);
+                    step = 4;
+                    break;
+                case 4:
+                    ctrl->recog_pending = 0;
+                    ctrl->mode = CTRL_MODE_IDLE;
+                    rt_event_send(g_task_mgr.event, TASK_EVENT_RECOG_DONE);
+                    step = 0;
+                    break;
             }
+            *out_vx = *out_vy = *out_omega = 0;
+            break;
         }
-    }
-    break;
 
         default:
             ctrl->mode = CTRL_MODE_IDLE;
             break;
     }
-}
-
-void HybridController_Reset(HybridController* ctrl) {
-    GridMap* saved_grid = ctrl->grid_map;
-    GameState* saved_state = ctrl->game_state;
-    memset(ctrl, 0, sizeof(HybridController));
-    ctrl->grid_map = saved_grid;
-    ctrl->game_state = saved_state;
-
-    ctrl->mode = CTRL_MODE_IDLE;
-    ctrl->lookahead_dist = 0.3f;
-    ctrl->min_lookahead = 0.15f;
-    ctrl->max_lookahead = 0.5f;
-    ctrl->max_speed = 0.15f;
-    ctrl->min_speed = 0.02f;
-    ctrl->visual_align_complete = 0;
-    ctrl->path_tolerance = 0.15f;
-    ctrl->enable_adaptive_lookahead = 1;
-    ctrl->path_stuck_threshold = 300;
-    ctrl->max_push_retries = 5;
-    ctrl->plan_interval = 0.5f;
-    ctrl->last_plan_time = 0.0f;
-    ctrl->is_bomb_path = 0;
-    ctrl->bomb_action_count = 0;
-    ctrl->bomb_action_index = 0;
-    ctrl->bomb_subpath_following = 0;
 }

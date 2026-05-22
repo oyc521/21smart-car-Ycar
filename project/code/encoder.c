@@ -4,7 +4,7 @@
 
 // 全局变量
 float enc1 = 0, enc2 = 0, enc3 = 0;
-float wheel_speed_mps[3] = {0, 0, 0};
+float wheel_speed_mps[3] = {0, 0, 0};     // 保留，兼容旧接口
 volatile uint8_t encoder_updated_flag = 0;
 
 // 内部状态
@@ -12,13 +12,15 @@ static int16_t last_raw[3] = {0, 0, 0};
 static uint32_t last_update_time = 0;
 static const uint32_t update_interval_ms = 10;   // 10ms更新
 
-// 滤波器实例
+// 滤波器实例（保留，供旧接口使用）
 static LowPassFilter_t speed_lpf[3];
+
+// 新增：保存最近一次脉冲增量
+static int16_t g_delta_pulses[3] = {0, 0, 0};
 
 // 编码器初始化
 void EncoderInit(void)
 {
-    // 初始化硬件
     encoder_quad_init(ENCODER_1, ENCODER_1_LSB, ENCODER_1_DIR);
     encoder_quad_init(ENCODER_2, ENCODER_2_LSB, ENCODER_2_DIR);
     encoder_quad_init(ENCODER_3, ENCODER_3_LSB, ENCODER_3_DIR);
@@ -27,18 +29,14 @@ void EncoderInit(void)
     encoder_clear_count(ENCODER_2);
     encoder_clear_count(ENCODER_3);
 
-    // 初始化 last_raw 为当前值，避免第一次跳变
     last_raw[0] = encoder_get_count(ENCODER_1);
     last_raw[1] = encoder_get_count(ENCODER_2);
     last_raw[2] = encoder_get_count(ENCODER_3);
     last_update_time = rt_tick_get();
 
-    // 初始化滤波器
     for (int i = 0; i < 3; i++) {
         LowPassFilter_Init(&speed_lpf[i], ENCODER_LPF_ALPHA);
     }
-
-    //rt_kprintf("Encoder Init OK\n");
 }
 
 // 编码器更新（每10ms在PIT中断中调用）
@@ -49,53 +47,60 @@ void EncoderUpdate(void)
     if (delta_ms < update_interval_ms) return;
     last_update_time = now;
 
-    // 读取当前计数值
     int16_t raw[3] = {
         encoder_get_count(ENCODER_1),
         encoder_get_count(ENCODER_2),
         encoder_get_count(ENCODER_3)
     };
 
-    // 计算增量，处理16位溢出
     int16_t delta[3];
     for (int i = 0; i < 3; i++) {
         delta[i] = raw[i] - last_raw[i];
         if (delta[i] > 16384) delta[i] -= 32768;
         else if (delta[i] < -16384) delta[i] += 32768;
         last_raw[i] = raw[i];
-			// 取反，使正转时为正数
-				//delta[i] = -delta[i];
     }
-		
-    float dt = delta_ms / 1000.0f;   // 秒
 
-    // 保存原始计数值（供外部读取）
+    // 保存原始脉冲增量，供新接口使用
+    for (int i = 0; i < 3; i++) {
+        g_delta_pulses[i] = delta[i];
+    }
+
+    float dt = delta_ms / 1000.0f;
+
     enc1 = raw[0];
     enc2 = raw[1];
     enc3 = raw[2];
 
-    // 计算速度（脉冲/秒）
+    // 旧速度计算（保留兼容）
     float raw_speed_pps[3];
     for (int i = 0; i < 3; i++) {
         raw_speed_pps[i] = delta[i] / dt;
     }
 
-    // 转换为 m/s
     float pps_to_mps = WHEEL_CIRCUMFERENCE / (ENCODER_PPR * ENCODER_GEAR_RATIO);
     for (int i = 0; i < 3; i++) {
         raw_speed_pps[i] *= pps_to_mps;
     }
 
-    // 低通滤波
     for (int i = 0; i < 3; i++) {
         wheel_speed_mps[i] = LowPassFilter_Update(raw_speed_pps[i], &speed_lpf[i]);
     }
 
-    // 置位更新标志
     encoder_updated_flag = 1;
 }
 
-// 其他接口函数
+// 新增：获取脉冲增量（线程安全）
+void EncoderGetDeltas(int16_t deltas[3])
+{
+    rt_enter_critical();
+    deltas[0] = g_delta_pulses[0];
+    deltas[1] = g_delta_pulses[1];
+    deltas[2] = g_delta_pulses[2];
+    rt_exit_critical();
+}
+
+// 旧接口保留
 void EncoderGetCounts(float counts[3])
 {
     counts[0] = enc1;
@@ -112,53 +117,25 @@ void EncoderGetSpeeds(float speeds_mps[3])
 
 void EncoderReset(void)
 {
+    rt_enter_critical();
+
     encoder_clear_count(ENCODER_1);
     encoder_clear_count(ENCODER_2);
     encoder_clear_count(ENCODER_3);
     last_raw[0] = last_raw[1] = last_raw[2] = 0;
     enc1 = enc2 = enc3 = 0;
+    g_delta_pulses[0] = g_delta_pulses[1] = g_delta_pulses[2] = 0;
     for (int i = 0; i < 3; i++) {
         wheel_speed_mps[i] = 0;
+        LowPassFilter_Init(&speed_lpf[i], ENCODER_LPF_ALPHA);
     }
-    //rt_kprintf("Encoder Reset\n");
+    last_update_time = rt_tick_get();
+    encoder_updated_flag = 0;
+
+    rt_exit_critical();
 }
 
-// PIT中断处理函数（在isr.c中调用）
 void pit_handler(void)
 {
     EncoderUpdate();
 }
-#ifdef DEBUG
-#include "zf_device_wireless_uart.h"
-
-static void encoder_thread_entry(void *parameter)
-{
-    // 无线模块初始化（如果已在主函数中初始化，可注释掉）
-    wireless_uart_init();
-
-    while (1)
-    {
-        if (encoder_updated_flag)
-        {
-            // 进入临界区，防止中断修改标志和数据
-            rt_enter_critical();
-            encoder_updated_flag = 0;          // 清零标志
-            float speeds[3];
-            EncoderGetSpeeds(speeds);          // 获取三个轮子速度（m/s）
-            rt_exit_critical();
-
-            // 通过无线模块发送速度值（乘以1000转为整数，避免浮点格式化问题）
-            char buf[64];
-            int len = rt_sprintf(buf, "SPD:%d,%d,%d\r\n",
-                                 (int)(speeds[0] * 1000),
-                                 (int)(speeds[1] * 1000),
-                                 (int)(speeds[2] * 1000));
-            wireless_uart_send_string(buf);
-        }
-        else
-        {
-            rt_thread_mdelay(5);   // 无数据时让出CPU，5ms可调
-        }
-    }
-}
-#endif

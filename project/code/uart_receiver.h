@@ -34,4 +34,9 @@ void parse_uart_data_thread_entry(void *parameter);
 /* 外部触发规划函数（在 uart_receiver.c 中定义） */
 void trigger_planning(void);
 
+// uart_receiver.h 中添加以下函数声明（在文件末尾）
+void get_vision_position(float *x, float *y);
+uint8_t is_vision_valid(void);
+void clear_vision_valid(void);
+
 #endif

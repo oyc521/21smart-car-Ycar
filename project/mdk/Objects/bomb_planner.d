@@ -2,7 +2,6 @@
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdint.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdbool.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\math.h \
-  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
   ..\..\libraries\rt-thread\include\rtthread.h \
   ..\..\libraries\rt-thread\bsp\imxrt1064-nxp-evk\rtconfig.h \
   ..\..\libraries\rt-thread\include\rtdebug.h \
@@ -13,6 +12,7 @@
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stddef.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h \
   E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
+  E:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h \
   ..\..\libraries\rt-thread\components\finsh\finsh.h \
   ..\..\libraries\zf_device\zf_device_wireless_uart.h \
   ..\..\libraries\zf_common\zf_common_typedef.h \
