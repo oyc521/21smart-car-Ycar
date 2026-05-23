@@ -1,6 +1,7 @@
+#include "debug.h"
+
 #if DEBUG_ENABLE
 
-#include "debug.h"
 #include <string.h>
 #include <stdlib.h>
 #include "zf_common_headfile.h"
@@ -16,9 +17,6 @@
 #include "task_manager.h"
 #include "uart_receiver.h"
 
-/* SeekFree 协议走 int32 ×1000 避免浮点传输问题 */
-#define DEBUG_PARAM_SCALE 1000.0f
-
 extern HybridController g_ctrl;
 extern float pid_kp, pid_ki, pid_kd;
 extern PIDParam_t angle_trace_param;
@@ -28,6 +26,7 @@ extern GridMap g_grid_map;
 extern GameState g_game_state;
 extern uint8_t waiting_map;
 extern uint8_t need_map_update;
+extern seekfree_assistant_receive_callback_function seekfree_assistant_receive_callback;
 
 static char cmd_queue[DEBUG_CMD_QUEUE_SIZE][DEBUG_CMD_LINE_MAX];
 static volatile uint8_t cmd_queue_head = 0;
@@ -63,7 +62,6 @@ static uint8_t cmd_queue_pop(char *line)
 }
 
 /* ========== 三组参数通道映射表 ========== */
-
 static const DebugChannel_t group_speed[DEBUG_CHANNEL_COUNT] = {
     { "INNER_KP",       &pid_kp,                100.0f, 0.0f,  500.0f },
     { "INNER_KI",       &pid_ki,                2.5f,   0.0f,  100.0f },
@@ -138,7 +136,6 @@ static void test_nav(float x, float y);
 static void test_square(float side);
 
 /* ========== 参数组管理函数 ========== */
-
 static void map_group(DebugGroup_t group)
 {
     current_group = group;
@@ -147,10 +144,9 @@ static void map_group(DebugGroup_t group)
     for (int i = 0; i < DEBUG_CHANNEL_COUNT; i++) {
         channel_map[i] = table[i];
         if (table[i].name && table[i].param_ptr) {
-            int32_t scaled = (int32_t)(*table[i].param_ptr * DEBUG_PARAM_SCALE);
-            *(int32_t *)&seekfree_assistant_parameter[i] = scaled;
+            seekfree_assistant_parameter[i] = *table[i].param_ptr;
         } else {
-            *(int32_t *)&seekfree_assistant_parameter[i] = 0;
+            seekfree_assistant_parameter[i] = 0.0f;
         }
     }
 }
@@ -165,10 +161,7 @@ void debug_apply_parameter(uint8_t channel, float value)
     if (value > ch->max_val) value = ch->max_val;
     *(ch->param_ptr) = value;
     channel_map[channel] = *ch;
-    {
-        int32_t scaled = (int32_t)(value * DEBUG_PARAM_SCALE);
-        *(int32_t *)&seekfree_assistant_parameter[channel] = scaled;
-    }
+    seekfree_assistant_parameter[channel] = value;
 
     switch (current_group) {
     case DEBUG_GROUP_SPEED:
@@ -179,15 +172,11 @@ void debug_apply_parameter(uint8_t channel, float value)
             g_ctrl.min_speed = g_ctrl.max_speed;
         }
         break;
-
     case DEBUG_GROUP_ANGLE:
         if (channel <= 1) {
-            AnglePID_SetParams(angle_trace_param.kp,
-                               angle_trace_param.ki,
-                               angle_trace_param.kd);
+            AnglePID_SetParams(angle_trace_param.kp, angle_trace_param.ki, angle_trace_param.kd);
         }
         break;
-
     case DEBUG_GROUP_TRACKING:
         if (channel == 4 || channel == 5) {
             pos_y_param.kp = pos_x_param.kp;
@@ -198,7 +187,6 @@ void debug_apply_parameter(uint8_t channel, float value)
 }
 
 /* ========== 打印函数 ========== */
-
 static void print_status(void)
 {
     char buf[128];
@@ -207,11 +195,11 @@ static void print_status(void)
 
     for (int i = 0; i < DEBUG_CHANNEL_COUNT; i++) {
         if (channel_map[i].name && channel_map[i].param_ptr) {
-            rt_sprintf(buf, "  ch%d %-16s = %.4f  [%.3f ~ %.3f]\r\n",
+            rt_sprintf(buf, "  ch%d %-16s = %d  [%d ~ %d]\r\n",
                        i, channel_map[i].name,
-                       *(channel_map[i].param_ptr),
-                       channel_map[i].min_val,
-                       channel_map[i].max_val);
+                       (int)(*(channel_map[i].param_ptr) * 1000),
+                       (int)(channel_map[i].min_val * 1000),
+                       (int)(channel_map[i].max_val * 1000));
             wireless_uart_send_string(buf);
         }
     }
@@ -225,37 +213,35 @@ static void print_save(void)
 
     switch (current_group) {
     case DEBUG_GROUP_SPEED:
-        rt_sprintf(buf, "MotorPID_SetGlobalParams(%.1ff, %.1ff, %.1ff);\r\n",
-                   pid_kp, pid_ki, pid_kd);
+        rt_sprintf(buf, "// MotorPID x1000:\r\n");
         wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.max_speed = %.3ff;\r\n", g_ctrl.max_speed);
+        rt_sprintf(buf, "pid_kp=%d pid_ki=%d pid_kd=%d\r\n",
+                   (int)(pid_kp * 1000), (int)(pid_ki * 1000), (int)(pid_kd * 1000));
         wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.min_speed = %.3ff;\r\n", g_ctrl.min_speed);
-        wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.push_speed_max = %.3ff;\r\n", g_ctrl.push_speed_max);
+        rt_sprintf(buf, "max_spd=%d min_spd=%d push_spd=%d\r\n",
+                   (int)(g_ctrl.max_speed * 1000),
+                   (int)(g_ctrl.min_speed * 1000),
+                   (int)(g_ctrl.push_speed_max * 1000));
         wireless_uart_send_string(buf);
         break;
-
     case DEBUG_GROUP_ANGLE:
-        rt_sprintf(buf, "AnglePID_SetParams(%.3ff, 0.0f, %.3ff);\r\n",
-                   angle_trace_param.kp, angle_trace_param.kd);
+        rt_sprintf(buf, "// Angle PID x1000: kp=%d kd=%d\r\n",
+                   (int)(angle_trace_param.kp * 1000),
+                   (int)(angle_trace_param.kd * 1000));
         wireless_uart_send_string(buf);
         break;
-
     case DEBUG_GROUP_TRACKING:
-        rt_sprintf(buf, "g_ctrl.lookahead_dist = %.3ff;\r\n", g_ctrl.lookahead_dist);
+        rt_sprintf(buf, "// Tracking x1000:\r\n");
         wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.path_tolerance = %.3ff;\r\n", g_ctrl.path_tolerance);
+        rt_sprintf(buf, "lookahead=%d path_tol=%d min_look=%d max_look=%d\r\n",
+                   (int)(g_ctrl.lookahead_dist * 1000),
+                   (int)(g_ctrl.path_tolerance * 1000),
+                   (int)(g_ctrl.min_lookahead * 1000),
+                   (int)(g_ctrl.max_lookahead * 1000));
         wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.min_lookahead = %.3ff;\r\n", g_ctrl.min_lookahead);
-        wireless_uart_send_string(buf);
-        rt_sprintf(buf, "g_ctrl.max_lookahead = %.3ff;\r\n", g_ctrl.max_lookahead);
-        wireless_uart_send_string(buf);
-        rt_sprintf(buf, "pos_x_param.kp = %.3ff; pos_x_param.kd = %.3ff;\r\n",
-                   pos_x_param.kp, pos_x_param.kd);
-        wireless_uart_send_string(buf);
-        rt_sprintf(buf, "pos_y_param.kp = %.3ff; pos_y_param.kd = %.3ff;\r\n",
-                   pos_y_param.kp, pos_y_param.kd);
+        rt_sprintf(buf, "pos_kp=%d pos_kd=%d\r\n",
+                   (int)(pos_x_param.kp * 1000),
+                   (int)(pos_x_param.kd * 1000));
         wireless_uart_send_string(buf);
         break;
     }
@@ -274,10 +260,11 @@ static void print_help(void)
     wireless_uart_send_string(" test digit   - UART4 digit recognition test\r\n");
     wireless_uart_send_string(" test box     - UART4 box type recognition test\r\n");
     wireless_uart_send_string(" help         - show this help\r\n");
+    wireless_uart_send_string(" setpose <x_cm> <y_cm> [yaw] - set car position\r\n");
+    wireless_uart_send_string(" reset        - reset controller state (keep params)\r\n");
 }
 
 /* ========== 测试函数 ========== */
-
 static void load_empty_map(void)
 {
     if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
@@ -287,6 +274,7 @@ static void load_empty_map(void)
     g_task_mgr.all_dest_recognized = 0;
     g_task_mgr.all_box_recognized = 0;
     if (g_map_mutex) rt_mutex_release(g_map_mutex);
+    Position_Set(0.0f, 0.0f, 0.0f);
     wireless_uart_send_string("[TEST] Empty map loaded.\r\n");
 }
 
@@ -315,6 +303,12 @@ static void test_straight(float dist)
     g_ctrl.push_smoothed_speed = 0.0f;
     g_ctrl.axial_tracking = 0;
     PID_Reset(&angle_trace_param);
+    {
+        float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
+        while (e > 180.0f) e -= 360.0f;
+        while (e < -180.0f) e += 360.0f;
+        angle_trace_param.error_last = e;
+    }
 
     float vx, vy, omega, dist_to_end;
     int ret;
@@ -322,30 +316,31 @@ static void test_straight(float dist)
     uint32_t start_tick = rt_tick_get();
 
     char buf[64];
-    rt_sprintf(buf, "[STRAIGHT] Start from (%.3f,%.3f) go %.2f m\r\n",
-               start_x, start_y, dist);
+    rt_sprintf(buf, "[STRAIGHT] start(%d,%d) go %d mm\r\n",
+               (int)(start_x * 1000), (int)(start_y * 1000), (int)(dist * 1000));
     wireless_uart_send_string(buf);
 
     do {
         ret = follow_path(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
                           &vx, &vy, &omega, &dist_to_end);
-        CarController_SetSpeed(vx, vy, 0.0f);
+        CarController_SetSpeed(vx, vy, omega);
         CarController_Update();
         Position_Update();
-        rt_thread_mdelay(5);
+        system_delay_ms(5);
 
         if (rt_tick_get() - start_tick > timeout_ms) {
             wireless_uart_send_string("[STRAIGHT] Timeout!\r\n");
             break;
         }
-    } while (!(ret && dist_to_end < g_ctrl.path_tolerance));
+    } while (!(ret && g_ctrl.path_target_idx >= g_ctrl.path_len - 1
+               && dist_to_end < g_ctrl.path_tolerance));
 
     CarController_Stop();
     CarController_Update();
 
     float actual = position.x_m - start_x;
-    rt_sprintf(buf, "[STRAIGHT] target=%.3f actual=%.3f error=%.3f\r\n",
-               dist, actual, actual - dist);
+    rt_sprintf(buf, "[STRAIGHT] tgt=%d act=%d err=%d mm\r\n",
+               (int)(dist * 1000), (int)(actual * 1000), (int)((actual - dist) * 1000));
     wireless_uart_send_string(buf);
 
     g_ctrl.mode = CTRL_MODE_IDLE;
@@ -433,6 +428,12 @@ static void test_square(float side)
     g_ctrl.push_smoothed_speed = 0.0f;
     g_ctrl.axial_tracking = 0;
     PID_Reset(&angle_trace_param);
+    {
+        float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
+        while (e > 180.0f) e -= 360.0f;
+        while (e < -180.0f) e += 360.0f;
+        angle_trace_param.error_last = e;
+    }
 
     wireless_uart_send_string("[SQUARE] Start square path...\r\n");
 
@@ -444,16 +445,17 @@ static void test_square(float side)
     do {
         ret = follow_path(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
                           &vx, &vy, &omega, &dist_to_end);
-        CarController_SetSpeed(vx, vy, 0.0f);
+        CarController_SetSpeed(vx, vy, omega);
         CarController_Update();
         Position_Update();
-        rt_thread_mdelay(5);
+        system_delay_ms(5);
 
         if (rt_tick_get() - start_tick > timeout_ms) {
             wireless_uart_send_string("[SQUARE] Timeout!\r\n");
             break;
         }
-    } while (!(ret && dist_to_end < g_ctrl.path_tolerance));
+    } while (!(ret && g_ctrl.path_target_idx >= g_ctrl.path_len - 1
+               && dist_to_end < g_ctrl.path_tolerance));
 
     CarController_Stop();
     CarController_Update();
@@ -465,8 +467,10 @@ static void test_square(float side)
     float total_err = sqrtf(dx_err*dx_err + dy_err*dy_err);
 
     char buf[128];
-    rt_sprintf(buf, "[SQUARE] Start(%.3f,%.3f) End(%.3f,%.3f) Error=%.3f m\r\n",
-               start_x, start_y, end_x, end_y, total_err);
+    rt_sprintf(buf, "[SQUARE] st(%d,%d) end(%d,%d) err=%d mm\r\n",
+               (int)(start_x * 1000), (int)(start_y * 1000),
+               (int)(end_x * 1000), (int)(end_y * 1000),
+               (int)(total_err * 1000));
     wireless_uart_send_string(buf);
 
     g_ctrl.mode = CTRL_MODE_IDLE;
@@ -495,23 +499,25 @@ static void test_nav(float x, float y)
     do {
         ret = follow_path(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
                           &vx, &vy, &omega, &dist_to_end);
-        CarController_SetSpeed(vx, vy, 0.0f);
+        CarController_SetSpeed(vx, vy, omega);
         CarController_Update();
         Position_Update();
-        rt_thread_mdelay(5);
+        system_delay_ms(5);
 
         if (rt_tick_get() - start_tick > timeout_ms) {
             wireless_uart_send_string("[NAV] Timeout!\r\n");
             break;
         }
-    } while (!(ret && dist_to_end < g_ctrl.path_tolerance));
+    } while (!(ret && g_ctrl.path_target_idx >= g_ctrl.path_len - 1
+               && dist_to_end < g_ctrl.path_tolerance));
 
     CarController_Stop();
     CarController_Update();
 
     char buf[128];
-    rt_sprintf(buf, "[NAV] Arrived. Target(%.3f,%.3f) Actual(%.3f,%.3f)\r\n",
-               x, y, position.x_m, position.y_m);
+    rt_sprintf(buf, "[NAV] tgt(%d,%d) act(%d,%d) mm\r\n",
+               (int)(x * 1000), (int)(y * 1000),
+               (int)(position.x_m * 1000), (int)(position.y_m * 1000));
     wireless_uart_send_string(buf);
 
     g_ctrl.mode = CTRL_MODE_IDLE;
@@ -543,7 +549,6 @@ static void test_box_recog(void)
 }
 
 /* ========== 命令解析 ========== */
-
 static void execute_command(char *line)
 {
     char *cmd = strtok(line, " \r\n");
@@ -604,6 +609,30 @@ static void execute_command(char *line)
         } else {
             wireless_uart_send_string("Unknown test. Available: straight, square, nav, empty, digit, box\r\n");
         }
+    } else if (strcmp(cmd, "setpose") == 0) {
+        char *x_str = strtok(NULL, " \r\n");
+        char *y_str = strtok(NULL, " \r\n");
+        char *yaw_str = strtok(NULL, " \r\n");
+        if (x_str && y_str) {
+            float x = (float)atoi(x_str) / 100.0f;
+            float y = (float)atoi(y_str) / 100.0f;
+            float yaw = yaw_str ? (float)atoi(yaw_str) : 0.0f;
+            Position_Set(x, y, yaw * DEG_TO_RAD);
+            char buf[64];
+            rt_sprintf(buf, "[DBG] Pose set (%d,%d) yaw=%d deg\r\n",
+                       (int)(x * 1000), (int)(y * 1000), (int)yaw);
+            wireless_uart_send_string(buf);
+        } else {
+            wireless_uart_send_string("Usage: setpose <x_cm> <y_cm> [yaw_deg]\r\n");
+        }
+    } else if (strcmp(cmd, "reset") == 0) {
+        CarController_Stop();
+        CarController_Update();
+        g_ctrl.mode = CTRL_MODE_IDLE;
+        g_ctrl.path_following = 0;
+        g_ctrl.path_len = 0;
+        PID_Reset(&angle_trace_param);
+        wireless_uart_send_string("[DBG] Controller reset. Ready for new test.\r\n");
     } else {
         char buf[64];
         rt_sprintf(buf, "[DBG] Unknown cmd: '%s'. Type 'help'.\r\n", cmd);
@@ -612,7 +641,6 @@ static void execute_command(char *line)
 }
 
 /* ========== 回调拦截器：分离文本命令和二进制帧 ========== */
-
 static uint32 debug_filtered_receive(uint8 *buff, uint32 length)
 {
     if (!saved_receive_callback) return 0;
@@ -622,11 +650,21 @@ static uint32 debug_filtered_receive(uint8 *buff, uint32 length)
 
     static char line[128];
     static uint8 idx = 0;
+    static uint8 skip_binary = 0;
     uint32 write_pos = 0;
 
     for (uint32 i = 0; i < n; i++) {
         uint8_t c = buff[i];
-        if (c == '\n' || c == '\r') {
+        if (skip_binary > 0) {
+            buff[write_pos++] = c;
+            skip_binary--;
+            continue;
+        }
+        if (c == 0x55) {
+            idx = 0;
+            buff[write_pos++] = c;
+            skip_binary = 7;
+        } else if (c == '\n' || c == '\r') {
             if (idx > 0) {
                 line[idx] = '\0';
                 if (!cmd_queue_full()) {
@@ -639,15 +677,14 @@ static uint32 debug_filtered_receive(uint8 *buff, uint32 length)
                 line[idx++] = c;
             }
         } else {
+            idx = 0;
             buff[write_pos++] = c;
         }
     }
-
     return write_pos;
 }
 
 /* ========== 命令处理（调试线程调用） ========== */
-
 void debug_process_commands(void)
 {
     char line[DEBUG_CMD_LINE_MAX];
@@ -657,7 +694,6 @@ void debug_process_commands(void)
 }
 
 /* ========== SeekFree 参数轮询（控制线程调用） ========== */
-
 void debug_seekfree_loop(void)
 {
     seekfree_assistant_data_analysis();
@@ -665,19 +701,18 @@ void debug_seekfree_loop(void)
     for (uint8_t i = 0; i < SEEKFREE_ASSISTANT_SET_PARAMETR_COUNT; i++) {
         if (seekfree_assistant_parameter_update_flag[i]) {
             seekfree_assistant_parameter_update_flag[i] = 0;
-            float val = (float)(*(int32_t *)&seekfree_assistant_parameter[i]) / DEBUG_PARAM_SCALE;
+            float val = seekfree_assistant_parameter[i];
             debug_apply_parameter(i, val);
 
             char msg[64];
-            rt_sprintf(msg, "[DBG] ch%d -> %.4f (%s)\r\n",
-                       i, val, channel_map[i].name ? channel_map[i].name : "?");
+            rt_sprintf(msg, "[DBG] ch%d -> %d (%s)\r\n",
+                       i, (int)(val * 1000), channel_map[i].name ? channel_map[i].name : "?");
             wireless_uart_send_string(msg);
         }
     }
 }
 
 /* ========== 调试执行线程 ========== */
-
 void debug_thread_entry(void *parameter)
 {
     wireless_uart_send_string("[DBG-THREAD] Debug exec thread started.\r\n");
@@ -688,7 +723,6 @@ void debug_thread_entry(void *parameter)
 }
 
 /* ========== 模块初始化 ========== */
-
 void debug_module_init(void)
 {
     saved_receive_callback = seekfree_assistant_receive_callback;
@@ -700,7 +734,7 @@ void debug_module_init(void)
                                               debug_thread_entry,
                                               RT_NULL,
                                               4096,
-                                              RT_THREAD_PRIORITY_MAX - 1,
+                                              RT_THREAD_PRIORITY_MAX / 2 - 1,
                                               20);
     if (dbg_thread) {
         rt_thread_startup(dbg_thread);
@@ -713,9 +747,11 @@ void debug_module_init(void)
     print_status();
 }
 
-#else
+#else   /* DEBUG_ENABLE == 0 */
 
+/* 调试禁用时的空实现 */
 #include "debug.h"
+
 void debug_module_init(void) {}
 void debug_process_commands(void) {}
 void debug_apply_parameter(uint8_t channel, float value) {}

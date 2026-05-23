@@ -32,5 +32,6 @@ void AnglePID_SwitchMode(int mode);
 void PositionPIDParamInit(void);
 int RotateToAngleIMU(float target_angle);
 void MoveToPositionIMU(float x_cm, float y_cm, float max_speed);
+void AnglePID_SetParams(float kp, float ki, float kd);
 
 #endif

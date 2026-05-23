@@ -7,8 +7,6 @@
 /* 调试功能总开关：1-启用，0-完全禁用 */
 #define DEBUG_ENABLE 1
 
-#if DEBUG_ENABLE
-
 /* 每组可调参数通道数（与SeekFree上位机通道数一致） */
 #define DEBUG_CHANNEL_COUNT 8
 #define DEBUG_GROUP_COUNT   3
@@ -31,30 +29,11 @@ typedef struct {
     float max_val;             /* 最大值约束 */
 } DebugChannel_t;
 
-/* 初始化调试模块（需在SeekFree串口初始化之后调用） */
+/* 函数声明（无条件，源文件根据 DEBUG_ENABLE 提供实现） */
 void debug_module_init(void);
-
-/* 从命令队列取一行执行（由调试执行线程循环调用） */
 void debug_process_commands(void);
-
-/* 应用单个通道的参数更新（由SeekFree回调自动调用） */
 void debug_apply_parameter(uint8_t channel, float value);
-
-/* 轮询SeekFree参数更新标志（由控制线程循环调用） */
 void debug_seekfree_loop(void);
-
-/* 调试执行线程入口 */
 void debug_thread_entry(void *parameter);
-
-#else
-
-/* 调试关闭时，所有函数编译为空内联 */
-static inline void debug_module_init(void) {}
-static inline void debug_process_commands(void) {}
-static inline void debug_apply_parameter(uint8_t channel, float value) {}
-static inline void debug_seekfree_loop(void) {}
-static inline void debug_thread_entry(void *parameter) {}
-
-#endif
 
 #endif

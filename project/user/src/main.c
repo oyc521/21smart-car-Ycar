@@ -87,100 +87,6 @@ static void request_new_map(void)
     wireless_uart_send_string("MAP_REQ sent.\r\n");
 }
 
-/**
- * @brief ��ʱֱ����̼Ʋ��ԣ�С���ӵ�ǰλ����ǰ�� target_distance �ס�
- *        ʹ�ô�·�����٣���������ͼ��A*��״̬����
- *        �����ڼ�����������̣߳���������ʱ���ԣ���Ӱ�졣
- * @param target_distance Ŀ����루�ף������� 2.0f
- */
-static void line_test(float target_distance)
-{
-    if (g_ctrl.mode != CTRL_MODE_IDLE) {
-        wireless_uart_send_string("[LINE_TEST] Controller busy, cannot test.\r\n");
-        return;
-    }
-
-    float start_x = position.x_m;
-    float start_y = position.y_m;
-
-    // ��㣺��ǰλ��
-    // �յ㣺��ȫ�� X ����ǰ target_distance �ף���Ϊ��0�㺽��X����ǰ��
-    float target_x = start_x + target_distance;
-    float target_y = start_y;
-
-    // ��������ֱ��·��
-    g_ctrl.current_path[0][0] = start_x;
-    g_ctrl.current_path[0][1] = start_y;
-    g_ctrl.current_path[1][0] = target_x;
-    g_ctrl.current_path[1][1] = target_y;
-    g_ctrl.path_len = 2;
-    g_ctrl.path_following = 1;
-    g_ctrl.path_purpose = PATH_PURPOSE_MOVE_ACTION;  // ��ʱ��һ�£���Ӱ��ԭ���߼�
-    g_ctrl.use_tangent_heading = 0;                  // ������0��
-    g_ctrl.path_locked_yaw = 0.0f;
-    g_ctrl.max_speed = 0.10f;    // ���õ����ٶ�
-    g_ctrl.min_speed = 0.06f;
-    g_ctrl.path_tolerance = 0.03f;
-    g_ctrl.push_smoothed_speed = 0.0f;  // ���û�����
-
-    PID_Reset(&angle_trace_param);
-
-    char buf[64];
-    rt_sprintf(buf, "[LINE_TEST] Start from (%.3f, %.3f), go forward %.2f m.\r\n",
-               start_x, start_y, target_distance);
-    wireless_uart_send_string(buf);
-
-    float vx, vy, omega, dist_to_end;
-    int ret;
-    const uint32_t timeout_ms = 15000;  // �15��
-    uint32_t start_tick = rt_tick_get();
-
-    do {
-        // ����·������
-        ret = follow_path(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
-                          &vx, &vy, &omega, &dist_to_end);
-
-        // �·��ٶȣ��� ǿ��Ϊ 0 �Ա��־���ֱ�ߣ�
-        CarController_SetSpeed(vx, vy, 0.0f);
-        CarController_Update();
-        Position_Update();
-
-        // �򵥴�ӡÿ 200ms һ��
-        static uint32_t last_print = 0;
-        if (rt_tick_get() - last_print > 200) {
-            last_print = rt_tick_get();
-            rt_sprintf(buf, "[LINE] target dist: %.3f, current (%.3f, %.3f)\r\n",
-                       dist_to_end, position.x_m, position.y_m);
-            wireless_uart_send_string(buf);
-        }
-
-        rt_thread_mdelay(5);
-
-        // ��ʱ�ж�
-        if (rt_tick_get() - start_tick > timeout_ms) {
-            wireless_uart_send_string("[LINE_TEST] Timeout!\r\n");
-            break;
-        }
-
-    } while (!(ret && dist_to_end < g_ctrl.path_tolerance));
-
-    CarController_Stop();
-    CarController_Update();
-
-    float end_x = position.x_m;
-    float end_y = position.y_m;
-    float dx = end_x - start_x;
-    float dy = end_y - start_y;
-
-    rt_sprintf(buf, "[LINE_TEST] Finished. Actual displacement: dx=%.3f m, dy=%.3f m (expected dx=%.2f)\r\n",
-               dx, dy, target_distance);
-    wireless_uart_send_string(buf);
-
-    // �ָ�����״̬���������κ��¼�����Ӱ��ԭ״̬����
-    g_ctrl.mode = CTRL_MODE_IDLE;
-    g_ctrl.path_following = 0;
-}
-
 /* �����߳���� */
 static void control_thread_entry(void *parameter)
 {
@@ -324,7 +230,6 @@ int main(void)
 
     wireless_uart_init();
     seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIRELESS_UART);
-    debug_module_init();
 
     gpio_init(LED_CONFIRM_PIN, GPO, 1, GPO_PUSH_PULL);
     beep_init();    // ��ʼ��������
@@ -346,6 +251,8 @@ int main(void)
     HybridController_Init(&g_ctrl, &g_grid_map, &g_game_state);
     g_ctrl.max_speed = 0.10f;
     g_ctrl.path_tolerance = 0.15f;
+
+    debug_module_init();
 
     uart_receive_init();
     uart4_recognition_init();  
