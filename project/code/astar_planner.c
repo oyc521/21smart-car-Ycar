@@ -7,7 +7,7 @@
 
 // 确保 MAX_PATH_POINTS 有定义（与 hybrid_controller.h 保持一致）
 #ifndef MAX_PATH_POINTS
-#define MAX_PATH_POINTS 400
+#define MAX_PATH_POINTS 200
 #endif
 
 // ===== 将大数组放入 OCRAM，释放 DTCM =====
@@ -64,17 +64,27 @@ static float heuristic(int x1, int y1, int x2, int y2) {
     return fmaxf(dx, dy) + (sqrtf(2) - 1) * fminf(dx, dy);
 }
 
+// 限制单次最大跳跃步数（细网格），防止长直线剐蹭墙壁
+#define MAX_STRAIGHTEN_STEPS 8
+
 static int line_of_sight_grid(GridMap* map, int x0, int y0, int x1, int y1) {
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     int err = dx + dy, e2;
     int x = x0, y = y0;
 
+    // Car body covers 4x4 fine cells (center ±2 in -2..+1 range)
     while (1) {
         if (!(x == x0 && y == y0) && !(x == x1 && y == y1)) {
-            uint8_t occ = map->occupancy[y][x];
-            if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB)
-                return 0;
+            for (int dy = -2; dy <= 1; dy++)
+                for (int dx = -2; dx <= 1; dx++) {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && nx < map->width && ny >= 0 && ny < map->height) {
+                        uint8_t occ = map->occupancy[ny][nx];
+                        if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB)
+                            return 0;
+                    }
+                }
         }
         if (x == x1 && y == y1) break;
         e2 = 2 * err;
@@ -97,7 +107,9 @@ static int greedy_straighten(GridMap* map, int* path_x, int* path_y, int len, in
     int last_idx = 0;
     while (last_idx < len - 1) {
         int next_idx = last_idx + 1;
-        for (int i = len - 1; i > last_idx; i--) {
+        int max_i = last_idx + MAX_STRAIGHTEN_STEPS;
+        if (max_i >= len) max_i = len - 1;
+        for (int i = max_i; i > last_idx; i--) {
             if (line_of_sight_grid(map, path_x[last_idx], path_y[last_idx],
                                    path_x[i], path_y[i])) {
                 next_idx = i;

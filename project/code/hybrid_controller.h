@@ -4,7 +4,7 @@
 #include "planner.h"
 
 #ifndef MAX_PATH_POINTS
-#define MAX_PATH_POINTS 400
+#define MAX_PATH_POINTS 200
 #endif
 
 /* 物体类型（用于 EvaluateBestStance） */

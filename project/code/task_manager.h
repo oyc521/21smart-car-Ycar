@@ -42,6 +42,7 @@ typedef struct {
     int action_queue[200];
     int action_total;
     int action_index;
+		int last_push_end_idx; 
 } TaskManager;
 
 /* 事件标志 */

@@ -138,7 +138,7 @@ int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
     int bomb_r = (int)(bomb_img_y / CELL_SIZE);
     int bomb_c = (int)(bomb_img_x / CELL_SIZE);
 
-    int best_wall = -1, best_steps = 1e9, best_dir = -1;
+    int best_wall = -1, best_total = 1e9, best_dir = -1;
     float best_target_mx = 0, best_target_my = 0;
 
     for (int w = 0; w < state->num_walls; w++) {
@@ -147,6 +147,10 @@ int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
 
         float wall_center_mx = (wall->x1 + wall->x2) * 0.5f;
         float wall_center_my = (wall->y1 + wall->y2) * 0.5f;
+
+        int wall_r = (int)(wall_center_my / CELL_SIZE);
+        int wall_c = (int)(wall_center_mx / CELL_SIZE);
+        int bomb_dist = abs(bomb_r - wall_r) + abs(bomb_c - wall_c);
 
         float dx = wall_center_mx - bomb->x;
         float dy = wall_center_my - bomb->y;
@@ -158,8 +162,9 @@ int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
 
         int steps;
         if (simulate_wall_destruction(state, grid_map, w, start_x, start_y, box_id, &steps)) {
-            if (steps < best_steps) {
-                best_steps = steps;
+            int total = bomb_dist + steps;
+            if (total < best_total) {
+                best_total = total;
                 best_wall = w;
                 best_dir = dir;
                 best_target_mx = wall_center_mx;

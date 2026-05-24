@@ -308,6 +308,7 @@ void task_manager_init(void) {
     g_task_mgr.all_box_recognized = 0;
     g_task_mgr.action_total = 0;
     g_task_mgr.action_index = 0;
+    g_task_mgr.last_push_end_idx = 0;
     recog_fail_count = 0;
 }
 
@@ -343,9 +344,10 @@ void task_manager_thread_entry(void *parameter) {
                           &recv_set) == RT_EOK) {
 
             if (recv_set & TASK_EVENT_RECOG_DONE) {
-                if (g_task_mgr.state == TASK_STATE_RECOGNIZE_DEST ||
-                    g_task_mgr.state == TASK_STATE_RECOGNIZE_BOX) {
+                if (g_task_mgr.state == TASK_STATE_RECOGNIZE_DEST) {
                     start_next_recognition();
+                } else if (g_task_mgr.state == TASK_STATE_RECOGNIZE_BOX) {
+                    g_task_mgr.state = TASK_STATE_ASSIGN_BOXES;
                 }
             }
 
@@ -638,6 +640,30 @@ static void task_state_machine(void) {
         case TASK_STATE_EXECUTE_BOX: {
             if (waiting_map) break;
             if (g_ctrl.mode != CTRL_MODE_IDLE) break;
+
+            // 段间过渡：从 action_queue 推算箱子位移，刷新地图
+            if (g_task_mgr.action_index > g_task_mgr.last_push_end_idx) {
+                float dx = 0, dy = 0;
+                for (int i = g_task_mgr.last_push_end_idx; i < g_task_mgr.action_index; i++) {
+                    int dir = g_task_mgr.action_queue[i] - 4;
+                    if (dir == 0)      dy -= 0.2f;
+                    else if (dir == 1) dx += 0.2f;
+                    else if (dir == 2) dy += 0.2f;
+                    else if (dir == 3) dx -= 0.2f;
+                }
+                int obj_id = g_ctrl.is_bomb_path ? g_task_mgr.current_bomb_id : g_task_mgr.current_box_id;
+                if (obj_id >= 0) {
+                    if (g_ctrl.is_bomb_path) {
+                        g_game_state.bombs[obj_id].x += dx;
+                        g_game_state.bombs[obj_id].y += dy;
+                    } else {
+                        g_game_state.boxes[obj_id].x += dx;
+                        g_game_state.boxes[obj_id].y += dy;
+                    }
+                }
+                g_task_mgr.last_push_end_idx = g_task_mgr.action_index;
+                refresh_grid_map(&g_game_state, &g_grid_map);
+            }
 
             if (g_task_mgr.action_index >= g_task_mgr.action_total) {
                 if (g_ctrl.is_bomb_path) {

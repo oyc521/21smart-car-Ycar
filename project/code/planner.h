@@ -4,28 +4,28 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// è°ƒè¯•è¾“å‡ºæ§åˆ¶
+// µ÷ÊÔÊä³ö¿ØÖÆ
 #ifndef DEBUG
 #define DEBUG 0
 #endif
 
-// ç½‘æ ¼åˆ†è¾¨ç‡
+// Íø¸ñ·Ö±æÂÊ
 #define RESOLUTION 0.05f
 #define CELL_SIZE  0.2f
 
-// åœ°å›¾å°ºå¯¸
+// µØÍ¼³ß´ç
 #define MAP_COLS 16
 #define MAP_ROWS 12
 #define FINE_COLS (MAP_COLS * 4)
 #define FINE_ROWS (MAP_ROWS * 4)
 
-// æœ€å¤§å¯¹è±¡æ•°é‡
+// ×î´ó¶ÔÏóÊıÁ¿
 #define MAX_BOXES         8
 #define MAX_DESTINATIONS  8
 #define MAX_BOMBS         8
 #define MAX_WALLS         100
 
-// å æ®æ …æ ¼å€¼
+// Õ¼¾İÕ¤¸ñÖµ
 #define OCC_FREE  0
 #define OCC_WALL  1
 #define OCC_BOX   2
@@ -36,31 +36,31 @@
 #define MAX_PATH_POINTS 200
 #endif
 
-// ç®±å­ç±»å‹æšä¸¾ï¼ˆæ•°å­—æ˜ å°„ï¼š0ç±³è€é¼  â€¦ 9ç°å¤ªç‹¼ï¼‰
+// Ïä×ÓÀàĞÍÃ¶¾Ù£¨Êı×ÖÓ³Éä£º0Ã×ÀÏÊó ¡­ 9»ÒÌ«ÀÇ£©
 typedef enum {
-    BOX_TYPE_MICKEY = 0,      // 0 ç±³è€é¼ 
-    BOX_TYPE_PIKACHU,         // 1 çš®å¡ä¸˜
-    BOX_TYPE_SPONGEBOB,       // 2 æµ·ç»µå®å®
-    BOX_TYPE_XIYANGYANG,      // 3 å–œç¾Šç¾Š
-    BOX_TYPE_DONALD,          // 4 å”è€é¸­
-    BOX_TYPE_NEZHA,           // 5 å“ªå’
-    BOX_TYPE_DATOUEZI,        // 6 å¤§å¤´å„¿å­
-    BOX_TYPE_PIGMAN,          // 7 çŒªçŒªä¾ 
-    BOX_TYPE_HULUWA,          // 8 è‘«èŠ¦å¨ƒ
-    BOX_TYPE_HUITAILANG,      // 9 ç°å¤ªç‹¼
-    BOX_TYPE_UNKNOWN = -1     // æœªçŸ¥ç±»å‹ï¼Œç½®ä¸º -1
+    BOX_TYPE_MICKEY = 0,      // 0 Ã×ÀÏÊó
+    BOX_TYPE_PIKACHU,         // 1 Æ¤¿¨Çğ
+    BOX_TYPE_SPONGEBOB,       // 2 º£Ãà±¦±¦
+    BOX_TYPE_XIYANGYANG,      // 3 Ï²ÑòÑò
+    BOX_TYPE_DONALD,          // 4 ÌÆÀÏÑ¼
+    BOX_TYPE_NEZHA,           // 5 ÄÄß¸
+    BOX_TYPE_DATOUEZI,        // 6 ´óÍ·¶ù×Ó
+    BOX_TYPE_PIGMAN,          // 7 ÖíÖíÏÀ
+    BOX_TYPE_HULUWA,          // 8 ºùÂ«ÍŞ
+    BOX_TYPE_HUITAILANG,      // 9 »ÒÌ«ÀÇ
+    BOX_TYPE_UNKNOWN = -1     // Î´ÖªÀàĞÍ£¬ÖÃÎª -1
 } BoxTypeEnum_t;
-// ç®±å­ä¿¡æ¯
+// Ïä×ÓĞÅÏ¢
 typedef struct {
     float x, y;
     int grid_x, grid_y;
-    int state;           // 0æœªæ¨ï¼Œ1å·²æ¨
+    int state;           // 0Î´ÍÆ£¬1ÒÑÍÆ
     int dest_id;
     BoxTypeEnum_t type;
     uint8_t recognized;
 } Box;
 
-// ç›®çš„åœ°ä¿¡æ¯
+// Ä¿µÄµØĞÅÏ¢
 typedef struct {
     float x, y;
     int grid_x, grid_y;
@@ -69,7 +69,7 @@ typedef struct {
     uint8_t recognized;
 } Destination;
 
-// ç‚¸å¼¹ä¿¡æ¯
+// Õ¨µ¯ĞÅÏ¢
 typedef struct {
     float x, y;
     int grid_x, grid_y;
@@ -78,12 +78,12 @@ typedef struct {
     int target_id;
 } Bomb;
 
-// å¢™ä½“ä¿¡æ¯
+// Ç½ÌåĞÅÏ¢
 typedef struct {
     float x1, y1, x2, y2;
 } Wall;
 
-// æ¸¸æˆçŠ¶æ€
+// ÓÎÏ·×´Ì¬
 typedef struct {
     Box boxes[MAX_BOXES];
     int num_boxes;
@@ -95,20 +95,20 @@ typedef struct {
     int num_walls;
 } GameState;
 
-// ç½‘æ ¼åœ°å›¾
+// Íø¸ñµØÍ¼
 typedef struct {
     uint8_t occupancy[FINE_ROWS][FINE_COLS];
     float cost_map[FINE_ROWS][FINE_COLS];
     int width, height;
 } GridMap;
 
-// A*è§„åˆ’å™¨å‚æ•°
+// A*¹æ»®Æ÷²ÎÊı
 typedef struct {
     int max_iterations;
     float inflation_radius;
 } AStarParams;
 
-// æ•°å­—-ç›®çš„åœ°æ˜ å°„è¡¨
+// Êı×Ö-Ä¿µÄµØÓ³Éä±í
 #define MAX_DIGITS 10
 typedef struct {
     int digit;
@@ -119,13 +119,13 @@ typedef struct {
 extern DigitMap_t g_digit_map[MAX_DIGITS];
 extern int g_digit_map_count;
 
-// è¯†åˆ«ç›®æ ‡ç±»å‹
+// Ê¶±ğÄ¿±êÀàĞÍ
 typedef enum {
     RECOG_TARGET_DEST,
     RECOG_TARGET_BOX
 } RecognTargetType_t;
 
-// ========== å‡½æ•°å£°æ˜ ==========
+// ========== º¯ÊıÉùÃ÷ ==========
 void load_map_from_text(const char* map_text, GridMap* grid_map, GameState* state);
 void load_map_from_objects(GridMap* grid_map, GameState* state,
                            float field_width, float field_height,
@@ -141,7 +141,7 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
 void world_to_grid(float wx, float wy, int* gx, int* gy);
 void grid_to_world(int gx, int gy, float* wx, float* wy);
 
-// ç‚¸å¼¹è§„åˆ’ç›¸å…³ï¼ˆä¿ç•™å®é™…ä½¿ç”¨çš„ï¼‰
+// Õ¨µ¯¹æ»®Ïà¹Ø£¨±£ÁôÊµ¼ÊÊ¹ÓÃµÄ£©
 int is_boundary_wall(Wall* w);
 int simulate_wall_destruction(GameState* state, GridMap* grid_map,
                               int wall_idx,
@@ -154,18 +154,18 @@ int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
                                 float* out_bomb_target_x, float* out_bomb_target_y,
                                 int* out_push_dir);
 
-// æ¨ç®±å­/ç‚¸å¼¹è§„åˆ’å™¨
+// ÍÆÏä×Ó/Õ¨µ¯¹æ»®Æ÷
 int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
                        float car_x, float car_y,
                        int* out_actions, int max_actions);
 int light_push_plan(GridMap* map, int start_r, int start_c, int goal_r, int goal_c,
                     int car_start_r, int car_start_c, int* out_actions, int max_actions);
 
-// åæ ‡è½¬æ¢
+// ×ø±ê×ª»»
 void motion_to_image(float mx, float my, float* wx, float* wy);
 void image_to_motion(float wx, float wy, float* mx, float* my);
 
-// æ•°å­—-ç®±å­æ˜ å°„
+// Êı×Ö-Ïä×ÓÓ³Éä
 int mapping_get_digit_for_box_type(BoxTypeEnum_t type);
 BoxTypeEnum_t mapping_get_box_type_for_digit(int digit);
 

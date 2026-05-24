@@ -408,6 +408,7 @@ void load_map_from_objects(GridMap* grid_map, GameState* state,
  * 创建膨胀代价地图（原有函数）
  */
 void create_inflated_cost_map(GridMap* map, GameState* state, float inflation_radius) {
+    if (inflation_radius < 3.0f) inflation_radius = 3.0f;
     int radius = (int)inflation_radius;
     for (int y = 0; y < map->height; y++)
         for (int x = 0; x < map->width; x++)
@@ -464,6 +465,15 @@ void create_inflated_cost_map(GridMap* map, GameState* state, float inflation_ra
                     }
                 }
             }
+        }
+    }
+
+    // 粗网格中心偏好：使A*偏向通道中央，减少贴墙
+    for (int y = 0; y < map->height; y++) {
+        for (int x = 0; x < map->width; x++) {
+            float dx = (float)(x % 4) - 2.0f;
+            float dy = (float)(y % 4) - 2.0f;
+            map->cost_map[y][x] += 0.1f * (dx*dx + dy*dy);
         }
     }
 }

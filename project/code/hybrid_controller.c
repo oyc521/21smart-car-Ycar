@@ -148,22 +148,24 @@ static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
  */
 #define RECOG_STANDOFF_DISTANCE  0.0f
 static int find_adjacent_for_recog(GridMap* map, int target_c, int target_r,
-                                   float* out_x, float* out_y, float* out_yaw)
+                                    float* out_x, float* out_y, float* out_yaw,
+                                    float car_x, float car_y)
 {
-    const int dr[4] = {-1, 0, 1, 0};   // 上, 右, 下, 左
+    const int dr[4] = {-1, 0, 1, 0};
     const int dc[4] = {0, 1, 0, -1};
-    // 查表：对应方向的角度（0°为右，Y向下为正）
     const float yaw_table[4] = {90.0f, 0.0f, -90.0f, 180.0f};
-    // 方向反向量（用于后退），即从目标指向站位的方向
     const float back_dir_x[4] = {0.0f, -1.0f, 0.0f, 1.0f};
     const float back_dir_y[4] = {1.0f, 0.0f, -1.0f, 0.0f};
+    #define YAW_COST_PER_DEG 0.004f
+
+    float best_score = 1e9f;
+    int best_d = -1;
+    float best_mx = 0, best_my = 0, best_yaw = 0;
 
     for (int d = 0; d < 4; d++) {
         int nr = target_r + dr[d];
         int nc = target_c + dc[d];
         if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) continue;
-
-        // 第一步：检查相邻网格是否空闲（原有逻辑）
         int base_x = nc * 4;
         int base_y = nr * 4;
         int blocked = 0;
@@ -174,44 +176,41 @@ static int find_adjacent_for_recog(GridMap* map, int target_c, int target_r,
                     map->occupancy[base_y+dy][base_x+dx] == OCC_BOMB)
                     blocked = 1;
         if (blocked) continue;
-
-        // 第二步：计算原始站位（相邻网格中心）
         float raw_img_x = (nc + 0.5f) * CELL_SIZE;
         float raw_img_y = (nr + 0.5f) * CELL_SIZE;
         float raw_motion_x, raw_motion_y;
         image_to_motion(raw_img_x, raw_img_y, &raw_motion_x, &raw_motion_y);
-
-        // 第三步：沿目标反方向后退 RECOG_STANDOFF_DISTANCE 米
         float new_motion_x = raw_motion_x + back_dir_x[d] * RECOG_STANDOFF_DISTANCE;
         float new_motion_y = raw_motion_y + back_dir_y[d] * RECOG_STANDOFF_DISTANCE;
-
-        // 第四步：将新站位转换回图像坐标，检查其所在细网格区域是否空闲
         float new_img_x, new_img_y;
         motion_to_image(new_motion_x, new_motion_y, &new_img_x, &new_img_y);
         int new_c = (int)(new_img_x / CELL_SIZE);
         int new_r = (int)(new_img_y / CELL_SIZE);
-
-        // 边界保护
         if (new_r < 0 || new_r >= MAP_ROWS || new_c < 0 || new_c >= MAP_COLS) continue;
-
         int new_base_x = new_c * 4;
         int new_base_y = new_r * 4;
         int new_blocked = 0;
         for (int dy = 0; dy < 4 && !new_blocked; dy++)
             for (int dx = 0; dx < 4; dx++)
                 if (map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_WALL ||
-                    map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_BOX ||
-                    map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_BOMB)
+                    map->occupancy[new_base_y+dy][new_base_x+dx] == OCC_BOX)
                     new_blocked = 1;
         if (new_blocked) continue;
 
-        // 第五步：输出新站位和航向
-        *out_x = new_motion_x;
-        *out_y = new_motion_y;
-        *out_yaw = yaw_table[d];
-        return 1;
+        float dx = new_motion_x - car_x;
+        float dy = new_motion_y - car_y;
+        float dist = sqrtf(dx*dx + dy*dy);
+        float yaw_err = fabsf(yaw_table[d]);
+        if (yaw_err > 180.0f) yaw_err = 360.0f - yaw_err;
+        float score = dist + yaw_err * YAW_COST_PER_DEG;
+        if (score < best_score) {
+            best_score = score; best_d = d;
+            best_mx = new_motion_x; best_my = new_motion_y; best_yaw = yaw_table[d];
+        }
     }
-    return 0;
+    if (best_d < 0) return 0;
+    *out_x = best_mx; *out_y = best_my; *out_yaw = best_yaw;
+    return 1;
 }
 
 /* ========== 公共：最优站位评估 ========== */
@@ -492,12 +491,116 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
     int len = astar_plan_path(ctrl->grid_map, start_gx, start_gy, goal_gx, goal_gy,
                               path_x, path_y, MAX_PATH_POINTS, &params);
     if (len <= 0) return 0;
+
+    // 静态数组，不占用栈空间，避免栈溢出
+    static int snapped_x[MAX_PATH_POINTS];
+    static int snapped_y[MAX_PATH_POINTS];
+    int snap_len = 0;
     for (int i = 0; i < len; i++) {
+        int cc = path_x[i] / 4;
+        int cr = path_y[i] / 4;
+        int cx = cc * 4 + 2;
+        int cy = cr * 4 + 2;
+        if (snap_len > 0 && snapped_x[snap_len-1] == cx && snapped_y[snap_len-1] == cy)
+            continue;
+        snapped_x[snap_len] = cx;
+        snapped_y[snap_len] = cy;
+        snap_len++;
+    }
+    // verify line-of-sight with 4x4 car body check; fall back on failure
+    int use_snapped = (snap_len >= 2);
+    if (use_snapped) {
+        for (int i = 0; i < snap_len - 1; i++) {
+            int dx = snapped_x[i+1] - snapped_x[i];
+            int dy = snapped_y[i+1] - snapped_y[i];
+            int steps = (abs(dx) > abs(dy)) ? abs(dx) : abs(dy);
+            if (steps == 0) continue;
+            float fx = (float)snapped_x[i];
+            float fy = (float)snapped_y[i];
+            float step_dx = (float)dx / steps;
+            float step_dy = (float)dy / steps;
+            int ok = 1;
+            for (int s = 0; s <= steps && ok; s++) {
+                int gx = (int)(fx + 0.5f);
+                int gy = (int)(fy + 0.5f);
+                for (int dy_off = -2; dy_off <= 1 && ok; dy_off++)
+                    for (int dx_off = -2; dx_off <= 1 && ok; dx_off++) {
+                        int nx = gx + dx_off, ny = gy + dy_off;
+                        if (nx >= 0 && nx < FINE_COLS && ny >= 0 && ny < FINE_ROWS) {
+                            uint8_t occ = ctrl->grid_map->occupancy[ny][nx];
+                            if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB)
+                                ok = 0;
+                        }
+                    }
+                fx += step_dx;
+                fy += step_dy;
+            }
+            if (!ok) { use_snapped = 0; break; }
+        }
+    }
+    int out_len;
+    int *straighten_x, *straighten_y;
+    if (use_snapped) {
+        straighten_x = snapped_x; straighten_y = snapped_y; out_len = snap_len;
+    } else {
+        straighten_x = path_x; straighten_y = path_y; out_len = len;
+    }
+
+    // 粗网格级别拉直：删除多余的转折（4x4 车体 LOS 校验通过则直接跳过中间点）
+    #define MAX_COARSE_STEPS 8
+    if (out_len > 2) {
+        int kept_x[MAX_PATH_POINTS], kept_y[MAX_PATH_POINTS];
+        int kept = 0;
+        kept_x[kept] = straighten_x[0]; kept_y[kept] = straighten_y[0]; kept++;
+        int last = 0;
+        while (last < out_len - 1) {
+            int next = last + 1;
+            int max_j = last + MAX_COARSE_STEPS;
+            if (max_j >= out_len) max_j = out_len - 1;
+            for (int j = max_j; j > last; j--) {
+                int dx = straighten_x[j] - straighten_x[last];
+                int dy = straighten_y[j] - straighten_y[last];
+                int steps = (abs(dx) > abs(dy)) ? abs(dx) : abs(dy);
+                int ok = 1;
+                if (steps > 0) {
+                    float fx = (float)straighten_x[last];
+                    float fy = (float)straighten_y[last];
+                    float step_dx = (float)dx / steps;
+                    float step_dy = (float)dy / steps;
+                    for (int s = 0; s <= steps && ok; s++) {
+                        int gx = (int)(fx + 0.5f);
+                        int gy = (int)(fy + 0.5f);
+                        for (int dy_off = -2; dy_off <= 1 && ok; dy_off++)
+                            for (int dx_off = -2; dx_off <= 1 && ok; dx_off++) {
+                                int nx = gx + dx_off, ny = gy + dy_off;
+                                if (nx >= 0 && nx < FINE_COLS && ny >= 0 && ny < FINE_ROWS) {
+                                    uint8_t occ = ctrl->grid_map->occupancy[ny][nx];
+                                    if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB)
+                                        ok = 0;
+                                }
+                            }
+                        fx += step_dx; fy += step_dy;
+                    }
+                }
+                if (ok) { next = j; break; }
+            }
+            if (kept < MAX_PATH_POINTS) {
+                kept_x[kept] = straighten_x[next]; kept_y[kept] = straighten_y[next]; kept++;
+            }
+            last = next;
+        }
+        out_len = kept;
+        for (int i = 0; i < kept; i++) {
+            straighten_x[i] = kept_x[i]; straighten_y[i] = kept_y[i];
+        }
+    }
+
+    for (int i = 0; i < out_len; i++) {
         float wx, wy;
-        grid_to_world(path_x[i], path_y[i], &wx, &wy);
+        grid_to_world(straighten_x[i], straighten_y[i], &wx, &wy);
         image_to_motion(wx, wy, &ctrl->current_path[i][0], &ctrl->current_path[i][1]);
     }
-    ctrl->path_len = len;
+    ctrl->path_len = out_len;
     ctrl->path_target_idx = 1;
     ctrl->axial_tracking = 0;
 #endif
@@ -651,65 +754,9 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     if (ctrl->path_len < 2) return 0;
 
-    float total_len = 0.0f;
-    for (int i = 0; i < ctrl->path_len - 1; i++) {
-        total_len += sqrtf(powf(ctrl->current_path[i+1][0]-ctrl->current_path[i][0], 2) +
-                           powf(ctrl->current_path[i+1][1]-ctrl->current_path[i][1], 2));
-    }
-
     float current_yaw = position.yaw_rad * RAD_TO_DEG;
 
-    /* 短路径处理（<0.5m） */
-    if (total_len < 0.5f) {
-        float dx = ctrl->current_path[ctrl->path_len-1][0] - car_x;
-        float dy = ctrl->current_path[ctrl->path_len-1][1] - car_y;
-        float dist_err = sqrtf(dx*dx + dy*dy);
-        *dist_to_end = dist_err;
-
-        if (dist_err < ctrl->path_tolerance) {
-            *vx = *vy = *omega = 0;
-            return 1;
-        }
-
-        float desired_speed = fminf(ctrl->max_speed, 2.5f * dist_err);
-        desired_speed = fmaxf(ctrl->min_speed, desired_speed);
-        *vx = desired_speed * dx / dist_err;
-        *vy = desired_speed * dy / dist_err;
-        if (ctrl->axial_tracking) {
-            float ax = fabsf(dx), ay = fabsf(dy);
-            if (ax > ay) *vy = 0.0f; else *vx = 0.0f;
-        }
-
-        float target_yaw_deg = ctrl->path_locked_yaw;  // 固定0°
-        float yaw_error = angle_diff(target_yaw_deg, current_yaw);
-        if (fabsf(yaw_error) < 3.0f) yaw_error = 0.0f;
-        float omega_corr_deg = PD(&angle_trace_param, 0, yaw_error);
-        float max_omega_nav = 25.0f;
-        if (omega_corr_deg > max_omega_nav) omega_corr_deg = max_omega_nav;
-        else if (omega_corr_deg < -max_omega_nav) omega_corr_deg = -max_omega_nav;
-        *omega = omega_corr_deg * DEG_TO_RAD;
-
-        // 缓启动平滑
-        {
-            float max_accel = 0.002f;
-            if (desired_speed > ctrl->push_smoothed_speed) {
-                ctrl->push_smoothed_speed += max_accel;
-                if (ctrl->push_smoothed_speed > desired_speed)
-                    ctrl->push_smoothed_speed = desired_speed;
-            } else {
-                ctrl->push_smoothed_speed = desired_speed;
-            }
-            if (desired_speed > 1e-3f) {
-                *vx = (*vx / desired_speed) * ctrl->push_smoothed_speed;
-                *vy = (*vy / desired_speed) * ctrl->push_smoothed_speed;
-            } else {
-                *vx = *vy = 0;
-            }
-        }
-        return 1;
-    }
-
-    /* 长路径处理 */
+    /* 逐点路径跟踪 */
     float min_dist;
     int nearest = find_nearest_point_on_path(ctrl->current_path, ctrl->path_len, car_x, car_y, &min_dist);
     *dist_to_end = sqrtf(powf(ctrl->current_path[ctrl->path_len-1][0] - car_x, 2) +
@@ -717,7 +764,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     float target_x, target_y;
     if (ctrl->path_target_idx < 0 || ctrl->path_target_idx >= ctrl->path_len)
-        ctrl->path_target_idx = nearest + 1;
+        ctrl->path_target_idx = (nearest + 1 < ctrl->path_len) ? nearest + 1 : ctrl->path_len - 1;
     if (ctrl->path_target_idx >= ctrl->path_len)
         ctrl->path_target_idx = ctrl->path_len - 1;
     {
@@ -862,14 +909,14 @@ void HybridController_Reset(HybridController* ctrl) {
 /* ========== 识别导航（支持双模式切换） ========== */
 int HybridController_NavigateAndRecognize(HybridController* ctrl,
                                           int target_grid_x, int target_grid_y,
-                                          RecognTargetType_t target_type, int target_id) {
+                                           RecognTargetType_t target_type, int target_id) {
     if (ctrl->mode != CTRL_MODE_IDLE) return 0;
     float target_x, target_y, target_yaw;
-    if (!find_adjacent_for_recog(ctrl->grid_map, target_grid_x, target_grid_y,
-                                  &target_x, &target_y, &target_yaw))
-        return 0;
     float car_x = position.x_m, car_y = position.y_m;
-    // 复用 PlanPathToPoint（自动切换 A*/BFS）
+    if (!find_adjacent_for_recog(ctrl->grid_map, target_grid_x, target_grid_y,
+                                  &target_x, &target_y, &target_yaw,
+                                  car_x, car_y))
+        return 0;
     if (!HybridController_PlanPathToPoint(ctrl, car_x, car_y, target_x, target_y))
         return 0;
     ctrl->path_purpose = PATH_PURPOSE_RECOG_STANCE;
