@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\Objects\rt1064.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\Objects\rt1064.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6190004: Last Updated: Sun May 24 20:24:23 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6190004: Last Updated: Tue May 26 11:36:14 2026
 <BR><P>
 <H3>Maximum Stack Usage =      24760 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -977,7 +977,6 @@ Global Symbols
 <LI><a href="#[24c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_interrupt_leave
 <LI><a href="#[24b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_tick_increase
 <LI><a href="#[24a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_interrupt_enter
-<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 <LI><a href="#[276]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_schedule
 <LI><a href="#[113]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;list_device
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;list_timer
@@ -1014,6 +1013,7 @@ Global Symbols
 <LI><a href="#[334]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_object_detach
 <LI><a href="#[349]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_object_init
 <LI><a href="#[13f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rtthread_startup
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[275]"></a>rt_hw_interrupt_enable</STRONG> (Thumb, 6 bytes, Stack size 0 bytes, context_rvds.o(.text))
@@ -1026,7 +1026,6 @@ Global Symbols
 <LI><a href="#[24c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_interrupt_leave
 <LI><a href="#[24b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_tick_increase
 <LI><a href="#[24a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_interrupt_enter
-<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 <LI><a href="#[276]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_schedule
 <LI><a href="#[113]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;list_device
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;list_timer
@@ -1061,6 +1060,7 @@ Global Symbols
 <LI><a href="#[332]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_thread_defunct_dequeue
 <LI><a href="#[334]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_object_detach
 <LI><a href="#[349]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_object_init
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[34e]"></a>rt_hw_context_switch</STRONG> (Thumb, 32 bytes, Stack size 0 bytes, context_rvds.o(.text))
@@ -1126,7 +1126,8 @@ Global Symbols
 <BR>[Address Reference Count : 1]<UL><LI> scanf_char.o(.text)
 </UL>
 <P><STRONG><a name="[1f6]"></a>abs</STRONG> (Thumb, 8 bytes, Stack size 0 bytes, siabs.o(.text))
-<BR><BR>[Called By]<UL><LI><a href="#[1f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPathToPoint
+<BR><BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[1f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPathToPoint
 <LI><a href="#[369]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;select_best_wall_to_destroy
 <LI><a href="#[2f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;line_of_sight_grid
 <LI><a href="#[289]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;heuristic
@@ -1151,15 +1152,16 @@ Global Symbols
 <P><STRONG><a name="[1aa]"></a>memcpy</STRONG> (Thumb, 0 bytes, Stack size 8 bytes, memmove.o(.text))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = memcpy
 </UL>
-<BR>[Called By]<UL><LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
-<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 <LI><a href="#[322]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;try_parse_frame
 <LI><a href="#[1be]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EvaluateBestStance
 <LI><a href="#[36a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;simulate_wall_destruction
 <LI><a href="#[ef]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_uart_data_thread_entry
 <LI><a href="#[2d3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_tail_buffer
+<LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 <LI><a href="#[38f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_transfer_data
 <LI><a href="#[1a8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;DbgConsole_PrintfFormattedData
 </UL>
@@ -1195,8 +1197,10 @@ Global Symbols
 <BR>[Calls]<UL><LI><a href="#[11f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_memset
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2b1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_output
+<LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[30f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;load_map_from_text
 <LI><a href="#[1fa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_Reset
+<LI><a href="#[1f2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_adjacent_for_recog
 <LI><a href="#[297]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;can_reach_fine
 <LI><a href="#[1c7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;light_push_plan
 <LI><a href="#[1c6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;light_sokoban_plan
@@ -2187,7 +2191,8 @@ Global Symbols
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
 <LI><a href="#[1aa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;memcpy
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[d7]"></a>FLEXIO1_DriverIRQHandler</STRONG> (Thumb, 8 bytes, Stack size 8 bytes, fsl_flexio.o(.text.FLEXIO1_DriverIRQHandler))
@@ -2363,7 +2368,8 @@ Global Symbols
 <LI><a href="#[1f6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;abs
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2cc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;test_nav
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[1f1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_NavigateAndRecognize
 </UL>
 
@@ -2372,7 +2378,7 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[148]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PID_Reset
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[1fa]"></a>HybridController_Reset</STRONG> (Thumb, 64 bytes, Stack size 24 bytes, hybrid_controller.o(.text.HybridController_Reset))
@@ -2840,7 +2846,7 @@ Global Symbols
 <BR>[Address Reference Count : 2]<UL><LI> startup_mimxrt1064.o(.text)
 <LI> startup_mimxrt1064.o(.isr_vector)
 </UL>
-<P><STRONG><a name="[2ef]"></a>PD</STRONG> (Thumb, 154 bytes, Stack size 20 bytes, pid.o(.text.PD))
+<P><STRONG><a name="[2ee]"></a>PD</STRONG> (Thumb, 154 bytes, Stack size 20 bytes, pid.o(.text.PD))
 <BR><BR>[Stack]<UL><LI>Max Depth = 20<LI>Call Chain = PD
 </UL>
 <BR>[Called By]<UL><LI><a href="#[1ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;follow_path
@@ -2949,8 +2955,8 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[247]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pwm_set_duty
 </UL>
 
-<P><STRONG><a name="[239]"></a>PositionPIDParamInit</STRONG> (Thumb, 324 bytes, Stack size 80 bytes, position.o(.text.PositionPIDParamInit))
-<BR><BR>[Stack]<UL><LI>Max Depth = 112<LI>Call Chain = PositionPIDParamInit &rArr; PIDInit
+<P><STRONG><a name="[239]"></a>PositionPIDParamInit</STRONG> (Thumb, 328 bytes, Stack size 72 bytes, position.o(.text.PositionPIDParamInit))
+<BR><BR>[Stack]<UL><LI>Max Depth = 104<LI>Call Chain = PositionPIDParamInit &rArr; PIDInit
 </UL>
 <BR>[Calls]<UL><LI><a href="#[195]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PIDInit
 </UL>
@@ -2958,7 +2964,7 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[23a]"></a>Position_Init</STRONG> (Thumb, 116 bytes, Stack size 16 bytes, position.o(.text.Position_Init))
-<BR><BR>[Stack]<UL><LI>Max Depth = 128<LI>Call Chain = Position_Init &rArr; PositionPIDParamInit &rArr; PIDInit
+<BR><BR>[Stack]<UL><LI>Max Depth = 120<LI>Call Chain = Position_Init &rArr; PositionPIDParamInit &rArr; PIDInit
 </UL>
 <BR>[Calls]<UL><LI><a href="#[239]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PositionPIDParamInit
 <LI><a href="#[1bb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;LowPassFilter_Init
@@ -3252,14 +3258,14 @@ Global Symbols
 <LI><a href="#[2c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;qtimer_iomuxc
 </UL>
 
-<P><STRONG><a name="[284]"></a>assign_boxes_to_destinations</STRONG> (Thumb, 554 bytes, Stack size 192 bytes, task_manager.o(.text.assign_boxes_to_destinations))
+<P><STRONG><a name="[284]"></a>assign_boxes_to_destinations</STRONG> (Thumb, 600 bytes, Stack size 192 bytes, task_manager.o(.text.assign_boxes_to_destinations))
 <BR><BR>[Stack]<UL><LI>Max Depth = 920<LI>Call Chain = assign_boxes_to_destinations &rArr; wireless_uart_send_string &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
 <BR>[Calls]<UL><LI><a href="#[285]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_unpushed_box_for_dest_digit
 <LI><a href="#[1c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_sprintf
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 </UL>
 
@@ -3279,36 +3285,36 @@ Global Symbols
 <P><STRONG><a name="[fe]"></a>ble6a20_read_buffer</STRONG> (Thumb, 58 bytes, Stack size 24 bytes, zf_device_ble6a20.o(.text.ble6a20_read_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 792<LI>Call Chain = ble6a20_read_buffer &rArr; fifo_read_buffer &rArr; fifo_used &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[fd]"></a>ble6a20_send_buffer</STRONG> (Thumb, 146 bytes, Stack size 24 bytes, zf_device_ble6a20.o(.text.ble6a20_send_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 728<LI>Call Chain = ble6a20_send_buffer &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
-<LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
+<BR>[Calls]<UL><LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
 <LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[f8]"></a>bluetooth_ch9141_read_buffer</STRONG> (Thumb, 58 bytes, Stack size 24 bytes, zf_device_bluetooth_ch9141.o(.text.bluetooth_ch9141_read_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 792<LI>Call Chain = bluetooth_ch9141_read_buffer &rArr; fifo_read_buffer &rArr; fifo_used &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[f7]"></a>bluetooth_ch9141_send_buffer</STRONG> (Thumb, 148 bytes, Stack size 24 bytes, zf_device_bluetooth_ch9141.o(.text.bluetooth_ch9141_send_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 728<LI>Call Chain = bluetooth_ch9141_send_buffer &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
-<LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
+<BR>[Calls]<UL><LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
 <LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
@@ -3332,7 +3338,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[1c7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;light_push_plan
 </UL>
 
-<P><STRONG><a name="[381]"></a>clear_vision_valid</STRONG> (Thumb, 14 bytes, Stack size 0 bytes, uart_receiver.o(.text.clear_vision_valid))
+<P><STRONG><a name="[382]"></a>clear_vision_valid</STRONG> (Thumb, 14 bytes, Stack size 0 bytes, uart_receiver.o(.text.clear_vision_valid))
 <BR><BR>[Called By]<UL><LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
 </UL>
 
@@ -3406,9 +3412,7 @@ Global Symbols
 <LI><a href="#[2b0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_protective_handler
 <LI><a href="#[2af]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;interrupt_global_disable
 </UL>
-<BR>[Called By]<UL><LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
-<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[2b6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_init
+<BR>[Called By]<UL><LI><a href="#[2b6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_init
 <LI><a href="#[247]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pwm_set_duty
 <LI><a href="#[227]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;pwm_init
 <LI><a href="#[1b7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;encoder_quad_init
@@ -3428,6 +3432,8 @@ Global Symbols
 <LI><a href="#[2d1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_used
 <LI><a href="#[2d0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_clear
 <LI><a href="#[2b7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_init
+<LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 <LI><a href="#[fa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_read_buffer
 <LI><a href="#[f9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_send_buffer
 <LI><a href="#[f8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;bluetooth_ch9141_read_buffer
@@ -3583,8 +3589,8 @@ Global Symbols
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 <LI><a href="#[1aa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;memcpy
 </UL>
-<BR>[Called By]<UL><LI><a href="#[f4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_read_ring_buffer
-<LI><a href="#[2c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;seekfree_assistant_data_analysis
+<BR>[Called By]<UL><LI><a href="#[2c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;seekfree_assistant_data_analysis
+<LI><a href="#[f4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_read_ring_buffer
 <LI><a href="#[fa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_read_buffer
 <LI><a href="#[f8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;bluetooth_ch9141_read_buffer
 <LI><a href="#[fe]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ble6a20_read_buffer
@@ -3608,9 +3614,9 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 </UL>
-<BR>[Called By]<UL><LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[2c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;seekfree_assistant_data_analysis
+<BR>[Called By]<UL><LI><a href="#[2c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;seekfree_assistant_data_analysis
 <LI><a href="#[2d3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_tail_buffer
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 </UL>
 
 <P><STRONG><a name="[2d4]"></a>fifo_write_buffer</STRONG> (Thumb, 554 bytes, Stack size 40 bytes, zf_common_fifo.o(.text.fifo_write_buffer))
@@ -3733,13 +3739,13 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> shell.o(.text.finsh_system_init)
 </UL>
-<P><STRONG><a name="[1ea]"></a>follow_path</STRONG> (Thumb, 1144 bytes, Stack size 128 bytes, hybrid_controller.o(.text.follow_path))
-<BR><BR>[Stack]<UL><LI>Max Depth = 192<LI>Call Chain = follow_path &rArr; find_nearest_point_on_path &rArr; __hardfp_sqrtf
+<P><STRONG><a name="[1ea]"></a>follow_path</STRONG> (Thumb, 1480 bytes, Stack size 160 bytes, hybrid_controller.o(.text.follow_path))
+<BR><BR>[Stack]<UL><LI>Max Depth = 224<LI>Call Chain = follow_path &rArr; find_nearest_point_on_path &rArr; __hardfp_sqrtf
 </UL>
-<BR>[Calls]<UL><LI><a href="#[2ee]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;angle_diff
+<BR>[Calls]<UL><LI><a href="#[2ef]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;angle_diff
 <LI><a href="#[2d6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_nearest_point_on_path
 <LI><a href="#[149]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;AnglePID_SwitchMode
-<LI><a href="#[2ef]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PD
+<LI><a href="#[2ee]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;PD
 <LI><a href="#[2ad]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fminf
 <LI><a href="#[2ac]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fmaxf
 <LI><a href="#[200]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fabsf
@@ -3767,7 +3773,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[f9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_send_buffer
 </UL>
 
-<P><STRONG><a name="[380]"></a>get_vision_position</STRONG> (Thumb, 38 bytes, Stack size 8 bytes, uart_receiver.o(.text.get_vision_position))
+<P><STRONG><a name="[381]"></a>get_vision_position</STRONG> (Thumb, 38 bytes, Stack size 8 bytes, uart_receiver.o(.text.get_vision_position))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = get_vision_position
 </UL>
 <BR>[Called By]<UL><LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
@@ -3827,7 +3833,8 @@ Global Symbols
 <P><STRONG><a name="[1f8]"></a>image_to_motion</STRONG> (Thumb, 30 bytes, Stack size 16 bytes, grid_map.o(.text.image_to_motion))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = image_to_motion
 </UL>
-<BR>[Called By]<UL><LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
+<BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
 <LI><a href="#[30f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;load_map_from_text
 <LI><a href="#[1f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPathToPoint
 <LI><a href="#[1c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_coarse_adjacent_target
@@ -3904,10 +3911,11 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[200]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fabsf
 </UL>
-<BR>[Called By]<UL><LI><a href="#[369]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;select_best_wall_to_destroy
+<BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[369]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;select_best_wall_to_destroy
 </UL>
 
-<P><STRONG><a name="[37f]"></a>is_vision_valid</STRONG> (Thumb, 12 bytes, Stack size 0 bytes, uart_receiver.o(.text.is_vision_valid))
+<P><STRONG><a name="[380]"></a>is_vision_valid</STRONG> (Thumb, 12 bytes, Stack size 0 bytes, uart_receiver.o(.text.is_vision_valid))
 <BR><BR>[Called By]<UL><LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
 </UL>
 
@@ -4324,7 +4332,7 @@ Global Symbols
 <BR>[Calls]<UL><LI><a href="#[2ab]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;create_inflated_cost_map
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2cd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;load_empty_map
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 <LI><a href="#[36a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;simulate_wall_destruction
 </UL>
@@ -4711,8 +4719,9 @@ Global Symbols
 <LI><a href="#[33f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_list_isempty
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2cd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;load_empty_map
+<LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[32d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rebuild_pending_boxes
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 <LI><a href="#[1be]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EvaluateBestStance
@@ -4732,8 +4741,9 @@ Global Symbols
 <LI><a href="#[25f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_ipc_list_suspend
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2cd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;load_empty_map
+<LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[32d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rebuild_pending_boxes
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 <LI><a href="#[1be]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EvaluateBestStance
@@ -4962,7 +4972,7 @@ Global Symbols
 <LI><a href="#[2c1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;execute_command
 <LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[286]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_single_box
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[284]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_boxes_to_destinations
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
 <LI><a href="#[1be]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EvaluateBestStance
@@ -5139,15 +5149,15 @@ Global Symbols
 <P><STRONG><a name="[165]"></a>rt_thread_mdelay</STRONG> (Thumb, 24 bytes, Stack size 16 bytes, thread.o(.text.rt_thread_mdelay))
 <BR><BR>[Stack]<UL><LI>Max Depth = 348<LI>Call Chain = rt_thread_mdelay &rArr; rt_thread_sleep &rArr; rt_timer_start &rArr; rt_schedule &rArr; _scheduler_stack_check &rArr; rt_kprintf &rArr; rt_vsnprintf &rArr; print_number &rArr; divide
 </UL>
-<BR>[Calls]<UL><LI><a href="#[360]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_tick_from_millisecond
-<LI><a href="#[361]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_thread_sleep
+<BR>[Calls]<UL><LI><a href="#[361]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_thread_sleep
+<LI><a href="#[360]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_tick_from_millisecond
 </UL>
 <BR>[Called By]<UL><LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
 <LI><a href="#[ec]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_thread_entry
 <LI><a href="#[32c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;read_line
 <LI><a href="#[36b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;send_command_and_wait
 <LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[1ed]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;RotateToAngleIMU
 <LI><a href="#[1fd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;IMU660RA_Calibrate
 <LI><a href="#[ef]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_uart_data_thread_entry
@@ -5250,19 +5260,19 @@ Global Symbols
 <LI><a href="#[23d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Position_Update
 <LI><a href="#[1b6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EncoderInit
 <LI><a href="#[f0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;control_thread_entry
-<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 <LI><a href="#[112]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;list_timer
 <LI><a href="#[33e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_start
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[24b]"></a>rt_tick_increase</STRONG> (Thumb, 126 bytes, Stack size 16 bytes, clock.o(.text.rt_tick_increase))
 <BR><BR>[Stack]<UL><LI>Max Depth = 356<LI>Call Chain = rt_tick_increase &rArr; rt_timer_check &rArr; rt_timer_start &rArr; rt_schedule &rArr; _scheduler_stack_check &rArr; rt_kprintf &rArr; rt_vsnprintf &rArr; print_number &rArr; divide
 </UL>
-<BR>[Calls]<UL><LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
-<LI><a href="#[276]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_schedule
+<BR>[Calls]<UL><LI><a href="#[276]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_schedule
 <LI><a href="#[259]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_thread_self
 <LI><a href="#[275]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_hw_interrupt_enable
 <LI><a href="#[271]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_hw_interrupt_disable
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 <BR>[Called By]<UL><LI><a href="#[d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SysTick_Handler
 </UL>
@@ -5329,9 +5339,9 @@ Global Symbols
 </UL>
 <BR>[Called By]<UL><LI><a href="#[33c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_event_recv
 <LI><a href="#[1bf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_mutex_take
-<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 <LI><a href="#[361]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_thread_sleep
 <LI><a href="#[2dc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_sem_take
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[362]"></a>rt_timer_stop</STRONG> (Thumb, 98 bytes, Stack size 24 bytes, timer.o(.text.rt_timer_stop))
@@ -5382,9 +5392,9 @@ Global Symbols
 <P><STRONG><a name="[2c2]"></a>seekfree_assistant_data_analysis</STRONG> (Thumb, 220 bytes, Stack size 152 bytes, seekfree_assistant.o(.text.seekfree_assistant_data_analysis))
 <BR><BR>[Stack]<UL><LI>Max Depth = 920<LI>Call Chain = seekfree_assistant_data_analysis &rArr; fifo_read_buffer &rArr; fifo_used &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
+<BR>[Calls]<UL><LI><a href="#[2d1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_used
+<LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
 <LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[2d1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_used
 <LI><a href="#[368]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;seekfree_assistant_sum
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2a3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_seekfree_loop
@@ -5415,7 +5425,7 @@ Global Symbols
 <LI><a href="#[1f6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;abs
 <LI><a href="#[200]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fabsf
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[393]"></a>set_wireless_type</STRONG> (Thumb, 110 bytes, Stack size 16 bytes, zf_device_type.o(.text.set_wireless_type))
@@ -5521,20 +5531,31 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[2fc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;imu660ra_write_registers
 </UL>
 
-<P><STRONG><a name="[377]"></a>start_next_recognition</STRONG> (Thumb, 564 bytes, Stack size 128 bytes, task_manager.o(.text.start_next_recognition))
-<BR><BR>[Stack]<UL><LI>Max Depth = 5808 + In Cycle
+<P><STRONG><a name="[377]"></a>start_next_recognition</STRONG> (Thumb, 2576 bytes, Stack size 480 bytes, task_manager.o(.text.start_next_recognition))
+<BR><BR>[Stack]<UL><LI>Max Depth = 6736 + In Cycle
 <LI>Call Chain = start_next_recognition &rArr;  start_next_recognition (Cycle)
 </UL>
 <BR>[Calls]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[379]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_unrecognized_box
 <LI><a href="#[378]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_unrecognized_destination
+<LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_active_bomb
 <LI><a href="#[1f1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_NavigateAndRecognize
+<LI><a href="#[1f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPathToPoint
+<LI><a href="#[1f8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;image_to_motion
+<LI><a href="#[1c1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_mutex_release
+<LI><a href="#[1bf]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_mutex_take
+<LI><a href="#[1be]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EvaluateBestStance
 <LI><a href="#[1c0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motion_to_image
+<LI><a href="#[305]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;is_boundary_wall
 <LI><a href="#[1c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_sprintf
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;memset
+<LI><a href="#[1aa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;memcpy
+<LI><a href="#[1f6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;abs
 </UL>
 <BR>[Called By]<UL><LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
 <LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[29b]"></a>system_delay_init</STRONG> (Thumb, 54 bytes, Stack size 32 bytes, zf_driver_delay.o(.text.system_delay_init))
@@ -5564,13 +5585,13 @@ Global Symbols
 <LI><a href="#[f5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_buffer
 </UL>
 
-<P><STRONG><a name="[37a]"></a>system_delay_us</STRONG> (Thumb, 86 bytes, Stack size 24 bytes, zf_driver_delay.o(.text.system_delay_us))
+<P><STRONG><a name="[37b]"></a>system_delay_us</STRONG> (Thumb, 86 bytes, Stack size 24 bytes, zf_driver_delay.o(.text.system_delay_us))
 <BR><BR>[Stack]<UL><LI>Max Depth = 632<LI>Call Chain = system_delay_us &rArr; GPT_SetOutputCompareValue &rArr; __aeabi_assert &rArr; DbgConsole_Printf &rArr; DbgConsole_Vprintf &rArr; DbgConsole_PrintfFormattedData &rArr; DbgConsole_ConvertFloatRadixNumToString &rArr; __hardfp_pow &rArr; sqrt
 </UL>
-<BR>[Calls]<UL><LI><a href="#[37e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_StopTimer
-<LI><a href="#[37d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_ClearStatusFlags
-<LI><a href="#[37c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_GetStatusFlags
-<LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_StartTimer
+<BR>[Calls]<UL><LI><a href="#[37f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_StopTimer
+<LI><a href="#[37e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_ClearStatusFlags
+<LI><a href="#[37d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_GetStatusFlags
+<LI><a href="#[37c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_StartTimer
 <LI><a href="#[1e7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPT_SetOutputCompareValue
 </UL>
 <BR>[Called By]<UL><LI><a href="#[38d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_wait_idle
@@ -5605,11 +5626,11 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[33c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_event_recv
 <LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[32d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rebuild_pending_boxes
-<LI><a href="#[381]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;clear_vision_valid
-<LI><a href="#[37f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;is_vision_valid
-<LI><a href="#[380]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;get_vision_position
+<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;clear_vision_valid
+<LI><a href="#[380]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;is_vision_valid
+<LI><a href="#[381]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;get_vision_position
 <LI><a href="#[1fa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_Reset
 <LI><a href="#[23c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Position_Set
 <LI><a href="#[19b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;CarController_Stop
@@ -5734,8 +5755,8 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[225]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;LPUART_WriteBlocking
 </UL>
-<BR>[Called By]<UL><LI><a href="#[f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_send_buffer
-<LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
+<BR>[Called By]<UL><LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
+<LI><a href="#[f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_send_buffer
 <LI><a href="#[f9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_send_buffer
 <LI><a href="#[f7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;bluetooth_ch9141_send_buffer
 <LI><a href="#[fd]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ble6a20_send_buffer
@@ -5773,9 +5794,9 @@ Global Symbols
 <P><STRONG><a name="[fc]"></a>wifi_spi_read_buffer</STRONG> (Thumb, 202 bytes, Stack size 56 bytes, zf_device_wifi_spi.o(.text.wifi_spi_read_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 880<LI>Call Chain = wifi_spi_read_buffer &rArr; wifi_spi_transfer_command &rArr; spi_transfer_8bit &rArr; spi_write &rArr; LPSPI_MasterTransferBlocking &rArr; LPSPI_CheckTransferArgument &rArr; __aeabi_assert &rArr; DbgConsole_Printf &rArr; DbgConsole_Vprintf &rArr; DbgConsole_PrintfFormattedData &rArr; DbgConsole_ConvertFloatRadixNumToString &rArr; __hardfp_pow &rArr; sqrt
 </UL>
-<BR>[Calls]<UL><LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
+<BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
 <LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 <LI><a href="#[38e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_transfer_command
 <LI><a href="#[38d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_wait_idle
 </UL>
@@ -5794,20 +5815,20 @@ Global Symbols
 <P><STRONG><a name="[fa]"></a>wifi_uart_read_buffer</STRONG> (Thumb, 60 bytes, Stack size 24 bytes, zf_device_wifi_uart.o(.text.wifi_uart_read_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 792<LI>Call Chain = wifi_uart_read_buffer &rArr; fifo_read_buffer &rArr; fifo_used &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[f9]"></a>wifi_uart_send_buffer</STRONG> (Thumb, 372 bytes, Stack size 64 bytes, zf_device_wifi_uart.o(.text.wifi_uart_send_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 880<LI>Call Chain = wifi_uart_send_buffer &rArr; wifi_uart_wait_ack &rArr; fifo_read_tail_buffer &rArr; fifo_clear &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
-<LI><a href="#[2c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_string
+<BR>[Calls]<UL><LI><a href="#[2c3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_string
 <LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[2f1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;func_int_to_str
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
 <LI><a href="#[2f0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_byte
+<LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
 <LI><a href="#[391]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_wait_ack
 <LI><a href="#[390]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_uart_clear_receive_buffer
 </UL>
@@ -5816,8 +5837,8 @@ Global Symbols
 <P><STRONG><a name="[100]"></a>wireless_uart_callback</STRONG> (Thumb, 40 bytes, Stack size 16 bytes, zf_device_wireless_uart.o(.text.wireless_uart_callback))
 <BR><BR>[Stack]<UL><LI>Max Depth = 760<LI>Call Chain = wireless_uart_callback &rArr; fifo_write_buffer &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
-<LI><a href="#[384]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_query_byte
+<BR>[Calls]<UL><LI><a href="#[384]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_query_byte
+<LI><a href="#[2d4]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_write_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> zf_device_wireless_uart.o(.text.wireless_uart_init)
 </UL>
@@ -5836,28 +5857,28 @@ Global Symbols
 <P><STRONG><a name="[f6]"></a>wireless_uart_read_buffer</STRONG> (Thumb, 58 bytes, Stack size 24 bytes, zf_device_wireless_uart.o(.text.wireless_uart_read_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 792<LI>Call Chain = wireless_uart_read_buffer &rArr; fifo_read_buffer &rArr; fifo_used &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
-<LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<BR>[Calls]<UL><LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[28f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;fifo_read_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[f5]"></a>wireless_uart_send_buffer</STRONG> (Thumb, 146 bytes, Stack size 24 bytes, zf_device_wireless_uart.o(.text.wireless_uart_send_buffer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 728<LI>Call Chain = wireless_uart_send_buffer &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
-<LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
+<BR>[Calls]<UL><LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
 <LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> seekfree_assistant_interface.o(.text.seekfree_assistant_interface_init)
 </UL>
 <P><STRONG><a name="[1c2]"></a>wireless_uart_send_string</STRONG> (Thumb, 152 bytes, Stack size 24 bytes, zf_device_wireless_uart.o(.text.wireless_uart_send_string))
 <BR><BR>[Stack]<UL><LI>Max Depth = 728<LI>Call Chain = wireless_uart_send_string &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
-<LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
+<BR>[Calls]<UL><LI><a href="#[292]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_ms
 <LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
 <LI><a href="#[28e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_assert_handler
+<LI><a href="#[291]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;uart_write_buffer
 <LI><a href="#[1ab]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;strlen
 </UL>
 <BR>[Called By]<UL><LI><a href="#[ec]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;debug_thread_entry
@@ -5876,7 +5897,7 @@ Global Symbols
 <LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
 <LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
 <LI><a href="#[286]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_single_box
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[32d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rebuild_pending_boxes
 <LI><a href="#[284]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_boxes_to_destinations
 <LI><a href="#[320]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;parse_map_frame
@@ -6057,7 +6078,7 @@ Global Symbols
 <LI><a href="#[398]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__ARM_fpclassifyf
 <LI><a href="#[3aa]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__ieee_status
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[1ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;follow_path
 <LI><a href="#[1e9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;check_path_stuck
 </UL>
@@ -6091,11 +6112,10 @@ Global Symbols
 <BR>[Calls]<UL><LI><a href="#[39a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__set_errno
 </UL>
 <BR>[Called By]<UL><LI><a href="#[2cb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;test_square
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 <LI><a href="#[2ab]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;create_inflated_cost_map
 <LI><a href="#[1ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;follow_path
 <LI><a href="#[1e9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;check_path_stuck
-<LI><a href="#[1f2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_adjacent_for_recog
 <LI><a href="#[2d6]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_nearest_point_on_path
 <LI><a href="#[1f5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;astar_plan_path
 <LI><a href="#[289]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;heuristic
@@ -6378,19 +6398,19 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[1ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;follow_path
 </UL>
 
-<P><STRONG><a name="[2ee]"></a>angle_diff</STRONG> (Thumb, 132 bytes, Stack size 12 bytes, hybrid_controller.o(.text.angle_diff))
+<P><STRONG><a name="[2ef]"></a>angle_diff</STRONG> (Thumb, 132 bytes, Stack size 12 bytes, hybrid_controller.o(.text.angle_diff))
 <BR><BR>[Stack]<UL><LI>Max Depth = 12<LI>Call Chain = angle_diff
 </UL>
 <BR>[Called By]<UL><LI><a href="#[1ea]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;follow_path
 </UL>
 
-<P><STRONG><a name="[1f2]"></a>find_adjacent_for_recog</STRONG> (Thumb, 996 bytes, Stack size 264 bytes, hybrid_controller.o(.text.find_adjacent_for_recog))
-<BR><BR>[Stack]<UL><LI>Max Depth = 280<LI>Call Chain = find_adjacent_for_recog &rArr; image_to_motion
+<P><STRONG><a name="[1f2]"></a>find_adjacent_for_recog</STRONG> (Thumb, 1656 bytes, Stack size 2800 bytes, hybrid_controller.o(.text.find_adjacent_for_recog))
+<BR><BR>[Stack]<UL><LI>Max Depth = 2816<LI>Call Chain = find_adjacent_for_recog &rArr; image_to_motion
 </UL>
 <BR>[Calls]<UL><LI><a href="#[1f8]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;image_to_motion
 <LI><a href="#[1c0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motion_to_image
+<LI><a href="#[120]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;memset
 <LI><a href="#[200]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_fabsf
-<LI><a href="#[1eb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_sqrtf
 </UL>
 <BR>[Called By]<UL><LI><a href="#[1f1]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_NavigateAndRecognize
 </UL>
@@ -6450,6 +6470,13 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[322]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;try_parse_frame
 </UL>
 
+<P><STRONG><a name="[37a]"></a>find_active_bomb</STRONG> (Thumb, 84 bytes, Stack size 8 bytes, task_manager.o(.text.find_active_bomb))
+<BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = find_active_bomb
+</UL>
+<BR>[Called By]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+</UL>
+
 <P><STRONG><a name="[32d]"></a>rebuild_pending_boxes</STRONG> (Thumb, 198 bytes, Stack size 16 bytes, task_manager.o(.text.rebuild_pending_boxes))
 <BR><BR>[Stack]<UL><LI>Max Depth = 744<LI>Call Chain = rebuild_pending_boxes &rArr; wireless_uart_send_string &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
@@ -6458,16 +6485,17 @@ Local Symbols
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
 </UL>
 <BR>[Called By]<UL><LI><a href="#[ff]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_manager_thread_entry
-<LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
-<P><STRONG><a name="[382]"></a>task_state_machine</STRONG> (Thumb, 2792 bytes, Stack size 304 bytes, task_manager.o(.text.task_state_machine))
+<P><STRONG><a name="[383]"></a>task_state_machine</STRONG> (Thumb, 2888 bytes, Stack size 304 bytes, task_manager.o(.text.task_state_machine))
 <BR><BR>[Stack]<UL><LI>Max Depth = 24720<LI>Call Chain = task_state_machine &rArr; select_best_wall_to_destroy &rArr; simulate_wall_destruction &rArr; light_sokoban_plan &rArr; wireless_uart_send_string &rArr; debug_assert_handler &rArr; debug_protective_handler &rArr; pwm_set_duty &rArr;  debug_assert_handler (Cycle)
 </UL>
-<BR>[Calls]<UL><LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
-<LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_active_bomb
+<BR>[Calls]<UL><LI><a href="#[377]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;start_next_recognition
+<LI><a href="#[296]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;calculate_push_stance_for_dir
 <LI><a href="#[286]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_single_box
 <LI><a href="#[32d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rebuild_pending_boxes
+<LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;find_active_bomb
 <LI><a href="#[284]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;assign_boxes_to_destinations
 <LI><a href="#[1f9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPushPath
 <LI><a href="#[1f3]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HybridController_PlanPathToPoint
@@ -6493,13 +6521,7 @@ Local Symbols
 <LI><a href="#[1c5]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_sprintf
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
-</UL>
-
-<P><STRONG><a name="[383]"></a>find_active_bomb</STRONG> (Thumb, 84 bytes, Stack size 8 bytes, task_manager.o(.text.find_active_bomb))
-<BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = find_active_bomb
-</UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[296]"></a>calculate_push_stance_for_dir</STRONG> (Thumb, 584 bytes, Stack size 144 bytes, task_manager.o(.text.calculate_push_stance_for_dir))
@@ -6511,7 +6533,7 @@ Local Symbols
 <LI><a href="#[1c0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;motion_to_image
 <LI><a href="#[1c2]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wireless_uart_send_string
 </UL>
-<BR>[Called By]<UL><LI><a href="#[382]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
+<BR>[Called By]<UL><LI><a href="#[383]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;task_state_machine
 </UL>
 
 <P><STRONG><a name="[386]"></a>LPUART_ReadByte</STRONG> (Thumb, 128 bytes, Stack size 20 bytes, uart4_recognition.o(.text.LPUART_ReadByte))
@@ -6808,31 +6830,31 @@ Local Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[166]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_assert
 </UL>
-<BR>[Called By]<UL><LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<BR>[Called By]<UL><LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 
-<P><STRONG><a name="[37b]"></a>GPT_StartTimer</STRONG> (Thumb, 18 bytes, Stack size 4 bytes, zf_driver_delay.o(.text.GPT_StartTimer))
+<P><STRONG><a name="[37c]"></a>GPT_StartTimer</STRONG> (Thumb, 18 bytes, Stack size 4 bytes, zf_driver_delay.o(.text.GPT_StartTimer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 4<LI>Call Chain = GPT_StartTimer
 </UL>
-<BR>[Called By]<UL><LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<BR>[Called By]<UL><LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 
-<P><STRONG><a name="[37c]"></a>GPT_GetStatusFlags</STRONG> (Thumb, 22 bytes, Stack size 8 bytes, zf_driver_delay.o(.text.GPT_GetStatusFlags))
+<P><STRONG><a name="[37d]"></a>GPT_GetStatusFlags</STRONG> (Thumb, 22 bytes, Stack size 8 bytes, zf_driver_delay.o(.text.GPT_GetStatusFlags))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = GPT_GetStatusFlags
 </UL>
-<BR>[Called By]<UL><LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<BR>[Called By]<UL><LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 
-<P><STRONG><a name="[37d]"></a>GPT_ClearStatusFlags</STRONG> (Thumb, 20 bytes, Stack size 8 bytes, zf_driver_delay.o(.text.GPT_ClearStatusFlags))
+<P><STRONG><a name="[37e]"></a>GPT_ClearStatusFlags</STRONG> (Thumb, 20 bytes, Stack size 8 bytes, zf_driver_delay.o(.text.GPT_ClearStatusFlags))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = GPT_ClearStatusFlags
 </UL>
-<BR>[Called By]<UL><LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<BR>[Called By]<UL><LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 
-<P><STRONG><a name="[37e]"></a>GPT_StopTimer</STRONG> (Thumb, 18 bytes, Stack size 4 bytes, zf_driver_delay.o(.text.GPT_StopTimer))
+<P><STRONG><a name="[37f]"></a>GPT_StopTimer</STRONG> (Thumb, 18 bytes, Stack size 4 bytes, zf_driver_delay.o(.text.GPT_StopTimer))
 <BR><BR>[Stack]<UL><LI>Max Depth = 4<LI>Call Chain = GPT_StopTimer
 </UL>
-<BR>[Called By]<UL><LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<BR>[Called By]<UL><LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 
 <P><STRONG><a name="[2c4]"></a>QTMR_GetCurrentTimerCount</STRONG> (Thumb, 24 bytes, Stack size 8 bytes, zf_driver_encoder.o(.text.QTMR_GetCurrentTimerCount))
@@ -7123,7 +7145,7 @@ Local Symbols
 <BR><BR>[Stack]<UL><LI>Max Depth = 648<LI>Call Chain = wifi_spi_wait_idle &rArr; gpio_get_level &rArr; GPIO_ReadPadStatus &rArr; GPIO_PinReadPadStatus &rArr; __aeabi_assert &rArr; DbgConsole_Printf &rArr; DbgConsole_Vprintf &rArr; DbgConsole_PrintfFormattedData &rArr; DbgConsole_ConvertFloatRadixNumToString &rArr; __hardfp_pow &rArr; sqrt
 </UL>
 <BR>[Calls]<UL><LI><a href="#[290]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;gpio_get_level
-<LI><a href="#[37a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
+<LI><a href="#[37b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;system_delay_us
 </UL>
 <BR>[Called By]<UL><LI><a href="#[fc]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_read_buffer
 <LI><a href="#[fb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;wifi_spi_send_buffer
@@ -8154,9 +8176,9 @@ Local Symbols
 <P><STRONG><a name="[27e]"></a>rt_list_init</STRONG> (Thumb, 16 bytes, Stack size 4 bytes, timer.o(.text.rt_list_init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 4<LI>Call Chain = rt_list_init
 </UL>
-<BR>[Called By]<UL><LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
-<LI><a href="#[27d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_timer_init
+<BR>[Called By]<UL><LI><a href="#[27d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_timer_init
 <LI><a href="#[359]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_system_timer_init
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[27f]"></a>_timer_remove</STRONG> (Thumb, 48 bytes, Stack size 16 bytes, timer.o(.text._timer_remove))
@@ -8164,24 +8186,24 @@ Local Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[280]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_list_remove
 </UL>
-<BR>[Called By]<UL><LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
-<LI><a href="#[273]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_detach
+<BR>[Called By]<UL><LI><a href="#[273]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_detach
 <LI><a href="#[362]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_stop
 <LI><a href="#[33e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_start
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[280]"></a>rt_list_remove</STRONG> (Thumb, 32 bytes, Stack size 4 bytes, timer.o(.text.rt_list_remove))
 <BR><BR>[Stack]<UL><LI>Max Depth = 4<LI>Call Chain = rt_list_remove
 </UL>
-<BR>[Called By]<UL><LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
-<LI><a href="#[27f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_timer_remove
+<BR>[Called By]<UL><LI><a href="#[27f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;_timer_remove
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[365]"></a>rt_list_insert_after</STRONG> (Thumb, 38 bytes, Stack size 8 bytes, timer.o(.text.rt_list_insert_after))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = rt_list_insert_after
 </UL>
-<BR>[Called By]<UL><LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
-<LI><a href="#[33e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_start
+<BR>[Called By]<UL><LI><a href="#[33e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_start
+<LI><a href="#[363]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;rt_timer_check
 </UL>
 
 <P><STRONG><a name="[364]"></a>rt_list_isempty</STRONG> (Thumb, 20 bytes, Stack size 4 bytes, timer.o(.text.rt_list_isempty))

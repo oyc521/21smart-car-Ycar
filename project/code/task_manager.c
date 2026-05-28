@@ -25,6 +25,7 @@ extern int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
                                        int car_fine_x, int car_fine_y,
                                        int box_id, float* out_x, float* out_y,
                                        int* out_push_dir);
+extern int is_boundary_wall(Wall* wall);   // 在炸弹规划器中实现
 
 DigitMap_t g_digit_map[MAX_DIGITS];
 int g_digit_map_count = 0;
@@ -34,7 +35,8 @@ static void task_state_machine(void);
 static void rebuild_pending_boxes(void);
 static int calculate_push_stance_for_dir(GameState* state, int obj_id, int obj_type,
                                           int push_dir, float* out_x, float* out_y);
-static void assign_single_box(int box_id);   // 新增：为单个箱子分配目的地
+static void assign_single_box(int box_id);
+static int find_active_bomb(void);   // 前向声明
 
 /* ---------- 辅助函数 ---------- */
 int find_unrecognized_destination(int *out_idx) {
@@ -73,7 +75,14 @@ int find_unpushed_box_for_dest_digit(int dest_digit, int *out_idx) {
 
 static uint8_t recog_fail_count = 0;
 
-// 为单个箱子分配目的地（根据箱子类型匹配数字映射）
+// 查找活跃炸弹（前向声明已在前面）
+static int find_active_bomb(void) {
+    for (int i = 0; i < g_game_state.num_bombs; i++) {
+        if (g_game_state.bombs[i].active) return i;
+    }
+    return -1;
+}
+
 static void assign_single_box(int box_id) {
     BoxTypeEnum_t box_type = g_game_state.boxes[box_id].type;
     for (int i = 0; i < g_digit_map_count; i++) {
@@ -92,7 +101,6 @@ static void assign_single_box(int box_id) {
             }
         }
     }
-    // 没有匹配的数字映射，按距离匹配
     int best_dest = -1;
     float best_dist = 1e9;
     for (int j = 0; j < g_game_state.num_destinations; j++) {
@@ -176,6 +184,143 @@ void start_next_recognition(void) {
             }
             recog_fail_count = 0;
             wireless_uart_send_string("[TaskMgr] Recognition failed repeatedly, skip.\r\n");
+        } else if (recog_fail_count == 1) {
+            // 首次失败：尝试用炸弹炸开挡路的墙（排除边界墙）
+            int bomb_id = find_active_bomb();
+            if (bomb_id >= 0) {
+                float bomb_ix, bomb_iy;
+                motion_to_image(g_game_state.bombs[bomb_id].x, g_game_state.bombs[bomb_id].y, &bomb_ix, &bomb_iy);
+                int bomb_r = (int)(bomb_iy / CELL_SIZE);
+                int bomb_c = (int)(bomb_ix / CELL_SIZE);
+                int best_wall = -1, best_bomb_dist = 1e9;
+                float best_target_x = 0, best_target_y = 0;
+                int car_fx = (int)(position.x_m / RESOLUTION + 0.5f);
+                int car_fy = (int)(position.y_m / RESOLUTION + 0.5f);
+                if (car_fx < 0) car_fx = 0; if (car_fx >= FINE_COLS) car_fx = FINE_COLS - 1;
+                if (car_fy < 0) car_fy = 0; if (car_fy >= FINE_ROWS) car_fy = FINE_ROWS - 1;
+
+                // 加锁保护临时修改地图
+                if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
+
+                for (int w = 0; w < g_game_state.num_walls; w++) {
+                    Wall* wall = &g_game_state.walls[w];
+                    if (is_boundary_wall(wall)) continue;
+                    float wx, wy;
+                    motion_to_image(wall->x1, wall->y1, &wx, &wy);
+                    int wr = (int)(wy / CELL_SIZE + 0.5f);
+                    int wc = (int)(wx / CELL_SIZE + 0.5f);
+                    int base_x = wc * 4, base_y = wr * 4;
+                    uint8_t saved[4][4];
+                    for (int dy = 0; dy < 4; dy++)
+                        for (int dx = 0; dx < 4; dx++)
+                            saved[dy][dx] = g_grid_map.occupancy[base_y+dy][base_x+dx];
+                    // 临时移除墙壁
+                    for (int dy = 0; dy < 4; dy++)
+                        for (int dx = 0; dx < 4; dx++)
+                            g_grid_map.occupancy[base_y+dy][base_x+dx] = OCC_FREE;
+
+                    const int dr[4] = {-1, 0, 1, 0};
+                    const int dc[4] = {0, 1, 0, -1};
+                    int stance_r = -1, stance_c = -1;
+                    for (int d = 0; d < 4 && stance_r < 0; d++) {
+                        int nr = target_grid_y + dr[d], nc = target_grid_x + dc[d];
+                        if (nr < 0 || nr >= MAP_ROWS || nc < 0 || nc >= MAP_COLS) continue;
+                        int occ = 0;
+                        for (int dy = 0; dy < 4 && !occ; dy++)
+                            for (int dx = 0; dx < 4; dx++)
+                                if (g_grid_map.occupancy[nr*4+dy][nc*4+dx] != OCC_FREE) occ = 1;
+                        if (!occ) { stance_r = nr; stance_c = nc; }
+                    }
+
+                    if (stance_r >= 0) {
+                        int gx = stance_c * 4 + 2, gy = stance_r * 4 + 2;
+                        static int qx[FINE_COLS * FINE_ROWS];
+                        static int qy[FINE_COLS * FINE_ROWS];
+                        static uint8_t vis[FINE_ROWS][FINE_COLS];
+                        memset(vis, 0, sizeof(vis));
+                        const int bdx[8] = {-1,0,1,-1,1,-1,0,1};
+                        const int bdy[8] = {-1,-1,-1,0,0,1,1,1};
+                        int head = 0, tail = 0;
+                        qx[tail] = car_fx; qy[tail] = car_fy; tail++;
+                        vis[car_fy][car_fx] = 1;
+                        while (head < tail) {
+                            int x = qx[head], y = qy[head]; head++;
+                            if (x == gx && y == gy) {
+                                int bomb_dist = abs(bomb_r - wr) + abs(bomb_c - wc);
+                                if (bomb_dist < best_bomb_dist) {
+                                    best_bomb_dist = bomb_dist;
+                                    best_wall = w;
+                                    best_target_x = (wc + 0.5f) * CELL_SIZE;
+                                    best_target_y = (wr + 0.5f) * CELL_SIZE;
+                                }
+                                break;
+                            }
+                            for (int d = 0; d < 8; d++) {
+                                int nx = x + bdx[d], ny = y + bdy[d];
+                                if (nx < 0 || nx >= FINE_COLS || ny < 0 || ny >= FINE_ROWS) continue;
+                                if (vis[ny][nx]) continue;
+                                uint8_t occ = g_grid_map.occupancy[ny][nx];
+                                if (occ == OCC_WALL || occ == OCC_BOX || occ == OCC_BOMB) continue;
+                                if (bdx[d] != 0 && bdy[d] != 0) {
+                                    if (g_grid_map.occupancy[y][nx] == OCC_WALL ||
+                                        g_grid_map.occupancy[y][nx] == OCC_BOX) continue;
+                                    if (g_grid_map.occupancy[ny][x] == OCC_WALL ||
+                                        g_grid_map.occupancy[ny][x] == OCC_BOX) continue;
+                                }
+                                vis[ny][nx] = 1;
+                                if (tail < FINE_COLS * FINE_ROWS) {
+                                    qx[tail] = nx; qy[tail] = ny; tail++;
+                                } else {
+                                    // 队列满，强制退出（实际不会发生）
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 恢复墙壁
+                    for (int dy = 0; dy < 4; dy++)
+                        for (int dx = 0; dx < 4; dx++)
+                            g_grid_map.occupancy[base_y+dy][base_x+dx] = saved[dy][dx];
+                }
+
+                if (g_map_mutex) rt_mutex_release(g_map_mutex);
+
+                if (best_wall >= 0) {
+                    float bomb_target_x, bomb_target_y;
+                    image_to_motion(best_target_x, best_target_y, &bomb_target_x, &bomb_target_y);
+                    int bomb_success = EvaluateBestStance(&g_game_state, &g_grid_map,
+                                        bomb_id, OBJ_BOMB,
+                                        bomb_target_x, bomb_target_y,
+                                        &g_ctrl.precomputed_stand_x,
+                                        &g_ctrl.precomputed_stand_y,
+                                        g_ctrl.precomputed_actions,
+                                        &g_ctrl.precomputed_count);
+                    if (bomb_success) {
+                        memcpy(g_task_mgr.action_queue, g_ctrl.precomputed_actions,
+                               g_ctrl.precomputed_count * sizeof(int));
+                        g_task_mgr.action_total = g_ctrl.precomputed_count;
+                        g_task_mgr.action_index = 0;
+                        g_task_mgr.current_bomb_id = bomb_id;
+                        g_ctrl.current_box_id = -1;
+                        g_ctrl.current_bomb_id = bomb_id;
+                        g_ctrl.is_bomb_path = 1;
+                        g_ctrl.bomb_target_pos[0] = bomb_target_x;
+                        g_ctrl.bomb_target_pos[1] = bomb_target_y;
+                        if (HybridController_PlanPathToPoint(&g_ctrl,
+                                position.x_m, position.y_m,
+                                g_ctrl.precomputed_stand_x,
+                                g_ctrl.precomputed_stand_y)) {
+                            recog_fail_count = 0;   // 重置失败计数
+                            g_task_mgr.state = TASK_STATE_EXECUTE_BOX;
+                            wireless_uart_send_string("[TaskMgr] Bomb path for recog.\r\n");
+                            return;
+                        }
+                    }
+                }
+            }
+            wireless_uart_send_string("[TaskMgr] Recognition failed, will retry.\r\n");
+            return;
         } else {
             wireless_uart_send_string("[TaskMgr] Recognition failed, will retry.\r\n");
             return;
@@ -202,6 +347,8 @@ void assign_boxes_to_destinations(void) {
 
     for (int i = 0; i < g_game_state.num_boxes; i++) {
         if (g_game_state.boxes[i].state == 0 && g_game_state.boxes[i].dest_id == -1) {
+            if (g_task_mgr.mode == TASK_MODE_STAGE2 &&
+                g_game_state.boxes[i].type == BOX_TYPE_UNKNOWN) continue;
             int best_dest = -1;
             float best_dist = 1e9;
             for (int j = 0; j < g_game_state.num_destinations; j++) {
@@ -238,13 +385,6 @@ static void rebuild_pending_boxes(void) {
     } else {
         wireless_uart_send_string("[TaskMgr] rebuild_pending_boxes: mutex timeout!\r\n");
     }
-}
-
-static int find_active_bomb(void) {
-    for (int i = 0; i < g_game_state.num_bombs; i++) {
-        if (g_game_state.bombs[i].active) return i;
-    }
-    return -1;
 }
 
 static int calculate_push_stance_for_dir(GameState* state, int obj_id, int obj_type,
@@ -396,12 +536,10 @@ void task_manager_thread_entry(void *parameter) {
                     } else if (g_task_mgr.pending_box_count > 0) {
                         g_task_mgr.state = TASK_STATE_PLANNING_BOX;
                     } else {
-                        // 没有待推送箱子
 #if ENABLE_RETURN_HOME
                         g_task_mgr.state = TASK_STATE_RETURNING;
                         wireless_uart_send_string("All tasks done, returning home.\r\n");
 #else
-                        // 第二关逐个模式：如果还有未识别的箱子，回到识别状态
                         if (g_task_mgr.mode == TASK_MODE_STAGE2 && !g_task_mgr.all_box_recognized) {
                             g_task_mgr.state = TASK_STATE_RECOGNIZE_BOX;
                             start_next_recognition();
@@ -475,7 +613,6 @@ static void task_state_machine(void) {
 
         case TASK_STATE_ASSIGN_BOXES: {
             if (g_map_mutex && rt_mutex_take(g_map_mutex, 500) == RT_EOK) {
-                // 第二关逐个模式：只分配当前刚识别完成的箱子
                 if (g_task_mgr.mode == TASK_MODE_STAGE2 &&
                     g_task_mgr.current_recog_target_id >= 0 &&
                     !g_task_mgr.all_box_recognized) {
@@ -483,10 +620,8 @@ static void task_state_machine(void) {
                     if (g_game_state.boxes[box_id].recognized && g_game_state.boxes[box_id].dest_id == -1) {
                         assign_single_box(box_id);
                     }
-                    // 清除临时 ID，避免重复分配
                     g_task_mgr.current_recog_target_id = -1;
                 } else {
-                    // 第一关或第二关统一分配模式
                     assign_boxes_to_destinations();
                 }
                 rt_mutex_release(g_map_mutex);
@@ -683,6 +818,16 @@ static void task_state_machine(void) {
                 }
                 need_map_update = 1;
                 g_ctrl.precomputed_count = 0;
+                if (g_task_mgr.mode == TASK_MODE_STAGE2 && g_ctrl.is_bomb_path) {
+                    g_ctrl.current_box_id = -1;
+                    g_ctrl.current_bomb_id = -1;
+                    g_ctrl.is_bomb_path = 0;
+                    g_task_mgr.action_total = 0;
+                    g_task_mgr.action_index = 0;
+                    g_task_mgr.state = TASK_STATE_RECOGNIZE_DEST;
+                    start_next_recognition();
+                    break;
+                }
                 g_ctrl.current_box_id = -1;
                 g_ctrl.current_bomb_id = -1;
                 g_ctrl.is_bomb_path = 0;

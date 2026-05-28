@@ -67,7 +67,7 @@ void Position_Init(void)
 void PositionPIDParamInit(void)
 {
     // 位置环 PID（备用）
-    float kp_adjust = 2.0f, kd_adjust = 0.8f;
+    float kp_adjust = 2.0f, kd_adjust = 0.4f;
     PIDInit(&pos_x_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
     PIDInit(&pos_y_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
 
