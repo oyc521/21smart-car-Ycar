@@ -23,6 +23,8 @@ typedef struct {
 extern Position_t position;
 extern PIDParam_t angle_trace_param;
 extern PIDParam_t pos_x_param, pos_y_param;
+extern PIDParam_t angle_pid_nav;
+extern float Kp_rot;
 
 void Position_Init(void);
 void Position_Update(void);

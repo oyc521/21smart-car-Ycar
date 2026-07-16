@@ -169,15 +169,7 @@ void AHRS_Update(void)
     while (attitude.roll < -180.0f) attitude.roll += 360.0f;
     while (attitude.yaw > 180.0f) attitude.yaw -= 360.0f;
     while (attitude.yaw < -180.0f) attitude.yaw += 360.0f;
-    // 诊断输出（每秒约20次，可选择只输出部分信息）
-    /*static uint32_t last_print = 0;
-    if (AHRS_DEBUG && (current_time_ms - last_print > 500)) // 每500ms输出一次
-    {
-        AHRS_PRINT("acc_angle: %.2f %.2f | gyro_raw: %.2f %.2f %.2f\r\n",
-                   acc_pitch, acc_roll,
-                   gx, gy, gz);
-        last_print = current_time_ms;
-    }*/
+    
 }
 
 /**

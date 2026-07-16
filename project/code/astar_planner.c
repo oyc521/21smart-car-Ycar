@@ -59,9 +59,7 @@ static HeapNode heap_pop(void) {
 }
 
 static float heuristic(int x1, int y1, int x2, int y2) {
-    int dx = abs(x1 - x2);
-    int dy = abs(y1 - y2);
-    return fmaxf(dx, dy) + (sqrtf(2) - 1) * fminf(dx, dy);
+    return (float)(abs(x1 - x2) + abs(y1 - y2));
 }
 
 // 限制单次最大跳跃步数（细网格），防止长直线剐蹭墙壁
@@ -110,6 +108,8 @@ static int greedy_straighten(GridMap* map, int* path_x, int* path_y, int len, in
         int max_i = last_idx + MAX_STRAIGHTEN_STEPS;
         if (max_i >= len) max_i = len - 1;
         for (int i = max_i; i > last_idx; i--) {
+            // 只允许轴向拉直（同 x 或同 y），禁止创建斜线
+            if (path_x[i] != path_x[last_idx] && path_y[i] != path_y[last_idx]) continue;
             if (line_of_sight_grid(map, path_x[last_idx], path_y[last_idx],
                                    path_x[i], path_y[i])) {
                 next_idx = i;
@@ -134,10 +134,6 @@ static int greedy_straighten(GridMap* map, int* path_x, int* path_y, int len, in
 
 int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal_y,
                     int* out_path_x, int* out_path_y, int max_path_len, AStarParams* params) {
-    if (map && map->width > 30 && map->height > 2) {
-        printf("[A*入口] map->occupancy[2][30]=%d, goal=(%d,%d) occ=%d\n",
-               map->occupancy[2][30], goal_x, goal_y, map->occupancy[goal_y][goal_x]);
-    }
 
     const int width = map->width;
     const int height = map->height;
@@ -166,9 +162,9 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
     heap_size = 0;
     heap_push(start_x, start_y, f_start);
 
-    const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-    const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-    const float move_cost[8] = {sqrtf(2), 1, sqrtf(2), 1, 1, sqrtf(2), 1, sqrtf(2)};
+    const int dx[4] = {-1, 0, 1, 0};
+    const int dy[4] = {0, 1, 0, -1};
+    const float move_cost[4] = {1, 1, 1, 1};
 
     int iterations = 0;
     int max_iter = (params) ? params->max_iterations : 5000;
@@ -190,7 +186,7 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
             break;
         }
 
-        for (int d = 0; d < 8; d++) {
+        for (int d = 0; d < 4; d++) {
             int nx = cx + dx[d];
             int ny = cy + dy[d];
             if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
@@ -199,13 +195,6 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
 
             if (map->occupancy[ny][nx] == OCC_WALL || map->occupancy[ny][nx] == OCC_BOMB) continue;
             if (!(nx == goal_x && ny == goal_y) && (map->occupancy[ny][nx] == OCC_BOX)) continue;
-
-            if (dx[d] != 0 && dy[d] != 0) {
-                if (map->occupancy[cy][nx] == OCC_WALL || map->occupancy[cy][nx] == OCC_BOX || map->occupancy[cy][nx] == OCC_BOMB)
-                    continue;
-                if (map->occupancy[ny][cx] == OCC_WALL || map->occupancy[ny][cx] == OCC_BOX || map->occupancy[ny][cx] == OCC_BOMB)
-                    continue;
-            }
 
             float tentative_g = g_score[idx] + move_cost[d] * map->cost_map[ny][nx];
             if (tentative_g < g_score[nidx]) {
@@ -218,45 +207,45 @@ int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal
     }
 
     int path_len = 0;
-		if (found) {
-				// 1. 先计算路径总长度
-				int total_len = 0;
-				int cur = goal_idx;
-				while (cur != -1) {
-						total_len++;
-						cur = parent[cur];
-				}
+    if (found) {
+        // 1. 先计算路径总长度
+        int total_len = 0;
+        int cur = goal_idx;
+        while (cur != -1) {
+            total_len++;
+            cur = parent[cur];
+        }
 
-				// 2. 决定实际写入的点数
-				int write_count = (total_len < max_path_len) ? total_len : max_path_len;
-				int skip = (total_len > max_path_len) ? (total_len - max_path_len) : 0;
+        // 2. 决定实际写入的点数
+        int write_count = (total_len < max_path_len) ? total_len : max_path_len;
+        int skip = (total_len > max_path_len) ? (total_len - max_path_len) : 0;
 
-				// 3. 从 goal 回溯，跳过前面靠近 goal 的多余节点，保留靠近 start 的部分
-				cur = goal_idx;
-				for (int i = 0; i < skip; i++) {
-						cur = parent[cur];
-				}
+        // 3. 从 goal 回溯，跳过前面靠近 goal 的多余节点，保留靠近 start 的部分
+        cur = goal_idx;
+        for (int i = 0; i < skip; i++) {
+            cur = parent[cur];
+        }
 
-				// 4. 写入 write_count 个节点（逆序：从 start 方向的第 write_count 个点到 start）
-				int idx = 0;
-				while (idx < write_count && cur != -1) {
-						out_path_x[idx] = cur % width;
-						out_path_y[idx] = cur / width;
-						idx++;
-						cur = parent[cur];
-				}
-				path_len = idx;   // = write_count
+        // 4. 写入 write_count 个节点（逆序：从 start 方向的第 write_count 个点到 start）
+        int idx = 0;
+        while (idx < write_count && cur != -1) {
+            out_path_x[idx] = cur % width;
+            out_path_y[idx] = cur / width;
+            idx++;
+            cur = parent[cur];
+        }
+        path_len = idx;   // = write_count
 
-				// 5. 反转，使路径从起点开始
-				for (int i = 0; i < path_len / 2; i++) {
-						int j = path_len - 1 - i;
-						int tx = out_path_x[i]; out_path_x[i] = out_path_x[j]; out_path_x[j] = tx;
-						int ty = out_path_y[i]; out_path_y[i] = out_path_y[j]; out_path_y[j] = ty;
-				}
+        // 5. 反转，使路径从起点开始
+        for (int i = 0; i < path_len / 2; i++) {
+            int j = path_len - 1 - i;
+            int tx = out_path_x[i]; out_path_x[i] = out_path_x[j]; out_path_x[j] = tx;
+            int ty = out_path_y[i]; out_path_y[i] = out_path_y[j]; out_path_y[j] = ty;
+        }
 
-				// 6. 平滑路径（内部只操作前 path_len 个元素，安全）
-				path_len = greedy_straighten(map, out_path_x, out_path_y, path_len, max_path_len);
-		}
+        // 6. 平滑路径（内部只操作前 path_len 个元素，安全）
+        path_len = greedy_straighten(map, out_path_x, out_path_y, path_len, max_path_len);
+    }
 
-		return found ? path_len : -1;
+    return found ? path_len : -1;
 }

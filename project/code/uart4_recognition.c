@@ -62,7 +62,7 @@ static int send_command_and_wait(const char *cmd, int *out_digit, BoxTypeEnum_t 
 {
     char line[LINE_BUF_SIZE];
     const int MAX_RETRIES = 3;      // 总共尝试3次（首次 + 2次重试）
-    const uint32_t LINE_TIMEOUT = 2000;  // 适当延长超时，给视觉识别更多时间
+    const uint32_t LINE_TIMEOUT = 3000;  // 适当延长超时，给视觉识别更多时间
 
     for (int retry = 0; retry < MAX_RETRIES; retry++) {
         // 清空缓冲区，发送命令

@@ -1,20 +1,20 @@
 /*
- * ========== ÐÂÔö½á¹¹Ìå×Ö¶Î£¨ÐèÌí¼Óµ½ hybrid_controller.h£© ==========
- *   ÔÚ HybridController ½á¹¹ÌåÖÐÔö¼Ó£º
- *     int path_target_idx;      // ×´Ì¬»¯×·×Ù£ºµ±Ç°Òª×·×ÙµÄÂ·¾¶µãË÷Òý
+ * ========== ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½ï¿½Ö¶Î£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½ hybrid_controller.hï¿½ï¿½ ==========
+ *   ï¿½ï¿½ HybridController ï¿½á¹¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó£ï¿½
+ *     int path_target_idx;      // ×´Ì¬ï¿½ï¿½×·ï¿½Ù£ï¿½ï¿½ï¿½Ç°Òª×·ï¿½Ùµï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  *
- * ==================== ÇÐÏßº½ÏòÊ¹ÓÃ×¢ÒâÊÂÏî ====================
- * µ±Ç°ÍÆÏä×Ó/Õ¨µ¯½×¶ÎÊ¹ÓÃËøº½ÏòÄ£Ê½£¨use_tangent_heading = 0£©£¬
- * ³µÍ·¹Ì¶¨£¬Æ½ÒÆ¸ú×ÙÂ·¾¶¡£
+ * ==================== ï¿½ï¿½ï¿½ßºï¿½ï¿½ï¿½Ê¹ï¿½ï¿½×¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ====================
+ * ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/Õ¨ï¿½ï¿½ï¿½×¶ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½use_tangent_heading = 0ï¿½ï¿½ï¿½ï¿½
+ * ï¿½ï¿½Í·ï¿½Ì¶ï¿½ï¿½ï¿½Æ½ï¿½Æ¸ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½
  *
- * ÈôºóÐøÏ£ÍûÆôÓÃÇÐÏßº½Ïò£¨³µÍ·×Ô¶¯¸úËæÂ·¾¶·½Ïò£©£¬ÐèÒª£º
- *   1. ÔÚ PlanSokoban / PlanBomb ÖÐ½« ctrl->use_tangent_heading ÉèÎª 1
- *   2. ÔÚ follow_path µÄÇÐÏßº½Ïò·ÖÖ§ÖÐ£¬¶Ô¼ÆËã³öµÄÄ¿±ê½Ç¶ÈÈ¡·´²¢¹éÒ»»¯£º
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ßºï¿½ï¿½ò£¨³ï¿½Í·ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ò£©£ï¿½ï¿½ï¿½Òªï¿½ï¿½
+ *   1. ï¿½ï¿½ PlanSokoban / PlanBomb ï¿½Ð½ï¿½ ctrl->use_tangent_heading ï¿½ï¿½Îª 1
+ *   2. ï¿½ï¿½ follow_path ï¿½ï¿½ï¿½ï¿½ï¿½ßºï¿½ï¿½ï¿½ï¿½Ö§ï¿½Ð£ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Ç¶ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½
  *         target_yaw_deg = atan2f(dy, dx) * 180.0f / M_PI;
- *         target_yaw_deg = -target_yaw_deg;   // È¡·´£¨ÍÓÂÝÒÇÕý·½Ïò¶¨Òåµ¼ÖÂ£©
+ *         target_yaw_deg = -target_yaw_deg;   // È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½åµ¼ï¿½Â£ï¿½
  *         while (target_yaw_deg > 180.0f) target_yaw_deg -= 360.0f;
  *         while (target_yaw_deg < -180.0f) target_yaw_deg += 360.0f;
- *   3. ÖØÐÂ²âÊÔ×ªÏò·½Ïò£¬ÈôÈÔ·´Ôò½«È¡·´²Ù×÷È¥³ý¼´¿É
+ *   3. ï¿½ï¿½ï¿½Â²ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô·ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  * =================================================================
  */
 #include "hybrid_controller.h"
@@ -28,7 +28,7 @@
 #include "uart_receiver.h"
 #include "uart4_recognition.h"
 
-/* Íâ²¿È«¾Ö±äÁ¿ */
+/* ï¿½â²¿È«ï¿½Ö±ï¿½ï¿½ï¿½ */
 extern uint8_t need_map_update;
 extern TaskManager g_task_mgr;
 extern Position_t position;
@@ -37,7 +37,7 @@ extern rt_mutex_t g_map_mutex;
 extern void BeepOnce(void);
 extern PIDParam_t angle_trace_param;
 
-/* ========== µ¼º½Ä£Ê½ÇÐ»»£¨0=A*Ï¸Íø¸ñ£¬1=BFS´ÖÍø¸ñ´¿ÖáÏò£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½Ð»ï¿½ï¿½ï¿½0=A*Ï¸ï¿½ï¿½ï¿½ï¿½1=BFSï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 #ifndef USE_MANHATTAN_NAV
 #define USE_MANHATTAN_NAV  0
 #endif
@@ -45,7 +45,7 @@ extern PIDParam_t angle_trace_param;
 #define PUSH_INTERP_STEP   RESOLUTION
 #endif
 
-/* ×ø±ê×ª»»º¯Êý */
+/* ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 extern void world_to_grid(float wx, float wy, int* gx, int* gy);
 extern void grid_to_world(int gx, int gy, float* wx, float* wy);
 extern int astar_plan_path(GridMap* map, int start_x, int start_y, int goal_x, int goal_y,
@@ -57,7 +57,7 @@ extern int light_sokoban_plan(GameState* state, GridMap* grid_map, int box_id,
 extern int light_push_plan(GridMap* map, int start_r, int start_c, int goal_r, int goal_c,
                            int car_start_r, int car_start_c, int* out_actions, int max_actions);
 
-/* ========== ¸¨Öúº¯Êý ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 static float angle_diff(float target, float current) {
     float diff = target - current;
     while (diff > 180.0f) diff -= 360.0f;
@@ -65,7 +65,7 @@ static float angle_diff(float target, float current) {
     return diff;
 }
 
-/* ²éÕÒÎïÌåÖÜÎ§¿ÕÏÐ´ÖÍø¸ñ£¨ÓÃÓÚÕ¨µ¯Õ¾Î»£© */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î§ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¨ï¿½ï¿½Õ¾Î»ï¿½ï¿½ */
 static int find_adjacent_free_cell(float obj_x, float obj_y, GridMap* grid_map,
                                    float* out_x, float* out_y) {
     float img_x, img_y;
@@ -97,7 +97,7 @@ static int find_adjacent_free_cell(float obj_x, float obj_y, GridMap* grid_map,
     return 0;
 }
 
-/* Õ¨µ¯¼¸ºÎÕ¾Î»²éÕÒ£¨¸¨Öú EvaluateBestStance£© */
+/* Õ¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¾Î»ï¿½ï¿½ï¿½Ò£ï¿½ï¿½ï¿½ï¿½ï¿½ EvaluateBestStanceï¿½ï¿½ */
 static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
                                    int push_dir, float* out_x, float* out_y) {
     const int dr[4] = {-1, 0, 1, 0};
@@ -125,26 +125,26 @@ static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
     return 1;
 }
 
-/* Ê¶±ðÕ¾Î»²éÕÒ£¨²é±í·¨£© */
+/* Ê¶ï¿½ï¿½Õ¾Î»ï¿½ï¿½ï¿½Ò£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 /*
- * Ê¶±ðÕ¾Î»ºóÍË²ßÂÔµ÷ÊÔËµÃ÷£º
+ * Ê¶ï¿½ï¿½Õ¾Î»ï¿½ï¿½ï¿½Ë²ï¿½ï¿½Ôµï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½
  * 
- * 1. Ê¶±ðÕ¾Î»×Ô¶¯ºóÍË RECOG_STANDOFF_DISTANCE Ã×£¨Ä¬ÈÏ0.10m£©£¬
- *    È·±£ÓëÄ¿±ê±£³Ö×ã¹»¾àÀë£¬±ÜÃâÊÓÒ°ÊÜÏÞ¡£
+ * 1. Ê¶ï¿½ï¿½Õ¾Î»ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ RECOG_STANDOFF_DISTANCE ï¿½×£ï¿½Ä¬ï¿½ï¿½0.10mï¿½ï¿½ï¿½ï¿½
+ *    È·ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ê±£ï¿½ï¿½ï¿½ã¹»ï¿½ï¿½ï¿½ë£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò°ï¿½ï¿½ï¿½Þ¡ï¿½
  * 
- * 2. µ÷½Ú·½·¨£º
- *    - ÈôOpenArtÊÓÒ°ÈÔÊÜÏÞ»òÊ¶±ðÊ§°ÜÂÊ¸ß£¬¿ÉÊÊµ±Ôö´ó¸ÃÖµ£¨Èç0.12¡«0.15m£©¡£
- *    - ÈôÒò³¡µØÏÁÕ­µ¼ÖÂÄ³Ð©·½ÏòÎÞ·¨ÕÒµ½°²È«Õ¾Î»£¬¿ÉÊÊµ±¼õÐ¡¸ÃÖµ£¨Èç0.08m£©¡£
- *    - ÐÞ¸ÄºóÐè¹Û²ì´®¿ÚÊä³ö£¬È·ÈÏÕ¾Î»ÊÇ·ñÈÔÔÚ¿ÉÐÐÇøÓòÄÚ¡£
+ * 2. ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½ï¿½ï¿½
+ *    - ï¿½ï¿½OpenArtï¿½ï¿½Ò°ï¿½ï¿½ï¿½ï¿½ï¿½Þ»ï¿½Ê¶ï¿½ï¿½Ê§ï¿½ï¿½ï¿½Ê¸ß£ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½0.12ï¿½ï¿½0.15mï¿½ï¿½ï¿½ï¿½
+ *    - ï¿½ï¿½ï¿½ò³¡µï¿½ï¿½ï¿½Õ­ï¿½ï¿½ï¿½ï¿½Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Þ·ï¿½ï¿½Òµï¿½ï¿½ï¿½È«Õ¾Î»ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½Ð¡ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½0.08mï¿½ï¿½ï¿½ï¿½
+ *    - ï¿½Þ¸Äºï¿½ï¿½ï¿½Û²ì´®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½Õ¾Î»ï¿½Ç·ï¿½ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¡ï¿½
  * 
- * 3. ÐÂÕ¾Î»°²È«¼ì²é£º
- *    - º¯Êý»áÑéÖ¤ºóÍËºóÐÂÕ¾Î»ËùÔÚµÄÏ¸Íø¸ñ£¨4x4£©ÊÇ·ñÍêÈ«¿ÕÏÐ£¬
- *      Èô±»Ç½±Ú»òÏä×ÓÕ¼¾ÝÔò·ÅÆú¸Ã·½Ïò£¬³¢ÊÔÏÂÒ»¸öÏàÁÚ·½Ïò¡£
- *    - ÈôËùÓÐ·½Ïò¾ù²»Âú×ã£¬º¯Êý·µ»Ø0£¬´¥·¢Ê¶±ðÊ§°ÜÖØÊÔÁ÷³Ì¡£
+ * 3. ï¿½ï¿½Õ¾Î»ï¿½ï¿½È«ï¿½ï¿½é£º
+ *    - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ëºï¿½ï¿½ï¿½Õ¾Î»ï¿½ï¿½ï¿½Úµï¿½Ï¸ï¿½ï¿½ï¿½ï¿½4x4ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ð£ï¿½
+ *      ï¿½ï¿½ï¿½ï¿½Ç½ï¿½Ú»ï¿½ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ò£¬³ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½
+ *    - ï¿½ï¿½ï¿½ï¿½ï¿½Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ã£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¶ï¿½ï¿½Ê§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¡ï¿½
  * 
- * 4. ²é±í½Ç¶È yaw_table ¸ù¾ÝÊµ¼Ê AHRS 0¡ã ·½Ïò¶¨Òå£¬
- *    µ±Ç°Éè¶¨£º0¡ãÎªÓÒ£¬YÏòÏÂÎªÕý£¬¶ÔÓ¦½Ç¶È {90¡ã, 0¡ã, -90¡ã, 180¡ã}¡£
- *    Èô·¢ÏÖÊ¶±ðÊ±³µÍ·³¯Ïò´íÎó£¬Çë¼ì²é´Ë´¦½Ç¶ÈÓ³Éä¡£
+ * 4. ï¿½ï¿½ï¿½ï¿½Ç¶ï¿½ yaw_table ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ AHRS 0ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½å£¬
+ *    ï¿½ï¿½Ç°ï¿½è¶¨ï¿½ï¿½0ï¿½ï¿½Îªï¿½Ò£ï¿½Yï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ç¶ï¿½ {90ï¿½ï¿½, 0ï¿½ï¿½, -90ï¿½ï¿½, 180ï¿½ï¿½}ï¿½ï¿½
+ *    ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¶ï¿½ï¿½Ê±ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë´ï¿½ï¿½Ç¶ï¿½Ó³ï¿½ä¡£
  */
 #define RECOG_STANDOFF_DISTANCE  0.0f
 static int find_adjacent_for_recog(GridMap* map, int target_c, int target_r,
@@ -213,7 +213,7 @@ static int find_adjacent_for_recog(GridMap* map, int target_c, int target_r,
     return 1;
 }
 
-/* ========== ¹«¹²£º×îÓÅÕ¾Î»ÆÀ¹À ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¾Î»ï¿½ï¿½ï¿½ï¿½ ========== */
 int EvaluateBestStance(GameState* state, GridMap* grid_map,
                        int obj_id, int obj_type,
                        float bomb_target_x, float bomb_target_y,
@@ -230,7 +230,7 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
         obj_y = state->bombs[obj_id].y;
     }
 
-    /* Ïä×Ó£ºÁÙÊ±Çå³ý×ÔÉíÏ¸Íø¸ñ */
+    /* ï¿½ï¿½ï¿½Ó£ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½ï¿½ï¿½ */
     uint8_t saved[4][4] = {0};
     int saved_flag = 0;
     if (obj_type == OBJ_BOX) {
@@ -259,11 +259,11 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
     float best_x = 0, best_y = 0;
     int best_actions[200];
 
-    /* ÕûÌå³¬Ê±Æðµã */
+    /* ï¿½ï¿½ï¿½å³¬Ê±ï¿½ï¿½ï¿½ */
     uint32_t eval_start_tick = rt_tick_get();
 
     for (int d = 0; d < 4; d++) {
-        /* --- ³¬Ê±±£»¤£º³¬¹ý 300ms Ôò·ÅÆúÊ£Óà·½Ïò --- */
+        /* --- ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 300ms ï¿½ï¿½ï¿½ï¿½ï¿½Ê£ï¿½à·½ï¿½ï¿½ --- */
         if (rt_tick_get() - eval_start_tick > 300) {
             wireless_uart_send_string("[Eval] timeout, skip remaining directions\r\n");
             break;
@@ -307,11 +307,11 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
 
             test_cnt = light_push_plan(grid_map, br, bc, tr, tc, cr, cc, test_act, 200);
             if (test_cnt > 0) {
-                for (int i = 0; i < test_cnt; i++) test_act[i] += 4;  // ×ªÎªÍÆ¶¯±àÂë
+                for (int i = 0; i < test_cnt; i++) test_act[i] += 4;  // ×ªÎªï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½
             }
         }
 
-        /* --- ²½Êý±£»¤£ºÌø¹ýÂ·¾¶¹ý³¤µÄ·½Ïò£¨×î´ó150²½£© --- */
+        /* --- ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½150ï¿½ï¿½ï¿½ï¿½ --- */
         if (test_cnt > 150) {
             char buf[64];
             rt_sprintf(buf, "[Eval] dir %d ignored, steps=%d\r\n", d, test_cnt);
@@ -330,7 +330,7 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
         }
     }
 
-    /* »Ö¸´Ïä×ÓÕ¼¾Ý */
+    /* ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ */
     if (saved_flag) {
         if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
         float img_x, img_y;
@@ -355,7 +355,7 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
     return 1;
 }
 
-/* ========== ´ÖÍø¸ñ BFS µ¼º½£¨´¿ÖáÏò£¬ÎÞÐ±Ïß£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ BFS ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ß£ï¿½ ========== */
 #if USE_MANHATTAN_NAV
 static int bfs_plan_path(HybridController* ctrl,
                           float start_x, float start_y,
@@ -462,7 +462,7 @@ static int bfs_plan_path(HybridController* ctrl,
 }
 #endif
 
-/* ========== ¹«¹²£ºµ¼º½µ½ÈÎÒâµã ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 int HybridController_PlanPathToPoint(HybridController* ctrl,
                                      float start_x, float start_y,
                                      float target_x, float target_y) {
@@ -492,7 +492,7 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
                               path_x, path_y, MAX_PATH_POINTS, &params);
     if (len <= 0) return 0;
 
-    // ¾²Ì¬Êý×é£¬²»Õ¼ÓÃÕ»¿Õ¼ä£¬±ÜÃâÕ»Òç³ö
+    // ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½é£¬ï¿½ï¿½Õ¼ï¿½ï¿½Õ»ï¿½Õ¼ä£¬ï¿½ï¿½ï¿½ï¿½Õ»ï¿½ï¿½ï¿½
     static int snapped_x[MAX_PATH_POINTS];
     static int snapped_y[MAX_PATH_POINTS];
     int snap_len = 0;
@@ -507,7 +507,7 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
         snapped_y[snap_len] = cy;
         snap_len++;
     }
-    // verify line-of-sight with 4x4 car body check; fall back on failure
+    // Ê¹ï¿½ï¿½ 4x4 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½é£¬ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½Ç·ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Ëµï¿½Ô­Ê¼Â·ï¿½ï¿½
     int use_snapped = (snap_len >= 2);
     if (use_snapped) {
         for (int i = 0; i < snap_len - 1; i++) {
@@ -546,7 +546,7 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
         straighten_x = path_x; straighten_y = path_y; out_len = len;
     }
 
-    // ´ÖÍø¸ñ¼¶±ðÀ­Ö±£ºÉ¾³ý¶àÓàµÄ×ªÕÛ£¨4x4 ³µÌå LOS Ð£ÑéÍ¨¹ýÔòÖ±½ÓÌø¹ýÖÐ¼äµã£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ñ¼¶±ï¿½ï¿½ï¿½Ö±ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½Ûµã£¨Í¨ï¿½ï¿½ 4x4 ï¿½ï¿½ï¿½ß¼ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¼ï¿½ã£©
     #define MAX_COARSE_STEPS 8
     if (out_len > 2) {
         int kept_x[MAX_PATH_POINTS], kept_y[MAX_PATH_POINTS];
@@ -616,14 +616,14 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
     return 1;
 }
 
-/* ========== ¹«¹²£ºÉú³ÉÍÆ¶¯Â·¾¶£¨Ô­×ÓÖ±Ïß¶Î£¬´øÏ¸²åÖµ£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ¶ï¿½Â·ï¿½ï¿½ï¿½ï¿½Ô­ï¿½ï¿½Ö±ï¿½ß¶Î£ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Öµï¿½ï¿½ ========== */
 int HybridController_PlanPushPath(HybridController* ctrl,
                                   float start_x, float start_y,
                                   int* actions, int action_count) {
     if (action_count <= 0) return 0;
     float cur_x = start_x, cur_y = start_y;
     int pt = 0;
-    // µÚÒ»¸öµãÉèÎªµ±Ç°Ð¡³µÎ»ÖÃ
+    // ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½Ç°Ð¡ï¿½ï¿½Î»ï¿½ï¿½
     ctrl->current_path[pt][0] = cur_x;
     ctrl->current_path[pt][1] = cur_y;
     pt++;
@@ -639,7 +639,7 @@ int HybridController_PlanPushPath(HybridController* ctrl,
         float target_x = cur_x + dx;
         float target_y = cur_y + dy;
 
-        // Ï¸²åÖµ£º°´ PUSH_INTERP_STEP ²½³¤²åÈëÖÐ¼äµã
+        // Ï¸ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ PUSH_INTERP_STEP ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¼ï¿½ï¿½
         float seg_len = CELL_SIZE;  // 0.2m
         int steps = (int)(seg_len / PUSH_INTERP_STEP);
         if (steps < 1) steps = 1;
@@ -654,7 +654,7 @@ int HybridController_PlanPushPath(HybridController* ctrl,
             ctrl->current_path[pt][1] = cur_y;
             pt++;
         }
-        // ÐÞÕýÀÛ»ýÎó²î£¬Ç¿ÖÆ¶ÔÆëµ½Ä¿±êÍø¸ñÖÐÐÄ
+        // ï¿½ï¿½ï¿½ï¿½ï¿½Û»ï¿½ï¿½ï¿½î£¬Ç¿ï¿½Æ¶ï¿½ï¿½ëµ½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         cur_x = target_x;
         cur_y = target_y;
     }
@@ -674,7 +674,7 @@ int HybridController_PlanPushPath(HybridController* ctrl,
     return 1;
 }
 
-/* ========== ¹«¹²£ºÑ°ÕÒÏä×ÓÆðÍÆµã£¨ÐÂÇ©Ãû£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æµã£¨ï¿½ï¿½Ç©ï¿½ï¿½ï¿½ï¿½ ========== */
 int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
                                 int box_id, float* out_x, float* out_y,
                                 int preferred_dir) {
@@ -687,7 +687,7 @@ int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
     const int dc[4] = {0, 1, 0, -1};
     const int opposite[4] = {2, 3, 0, 1};
 
-    // ÓÅÏÈÍÆ¶¯·½ÏòµÄ¶Ô²à
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½Ä¶Ô²ï¿½
     if (preferred_dir >= 0 && preferred_dir < 4) {
         int back_dir = opposite[preferred_dir];
         int nr = box_r + dr[back_dir];
@@ -712,7 +712,7 @@ int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
     return 0;
 }
 
-/* ========== Â·¾¶¸ú×Ù£¨±£ÁôËÙ¶ÈÆ½»¬&¾É°æ¿¨ËÀ¼ì²â£© ========== */
+/* ========== Â·ï¿½ï¿½ï¿½ï¿½ï¿½Ù£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù¶ï¿½Æ½ï¿½ï¿½&ï¿½É°æ¿¨ï¿½ï¿½ï¿½ï¿½â£© ========== */
 static int find_nearest_point_on_path(const float path[][2], int len, float x, float y, float* min_dist) {
     int idx = 0;
     *min_dist = 1e9f;
@@ -756,7 +756,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     float current_yaw = position.yaw_rad * RAD_TO_DEG;
 
-    /* ÖðµãÂ·¾¶¸ú×Ù */
+    /* ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     float min_dist;
     int nearest = find_nearest_point_on_path(ctrl->current_path, ctrl->path_len, car_x, car_y, &min_dist);
     *dist_to_end = sqrtf(powf(ctrl->current_path[ctrl->path_len-1][0] - car_x, 2) +
@@ -787,12 +787,15 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     float desired_speed = fminf(ctrl->max_speed, 1.5f * dist_err);
     desired_speed = fmaxf(ctrl->min_speed, desired_speed);
-    *vx = desired_speed * dx / dist_err;
-    *vy = desired_speed * dy / dist_err;
+    float vx_global = desired_speed * dx / dist_err;
+    float vy_global = desired_speed * dy / dist_err;
     if (ctrl->axial_tracking) {
         float ax = fabsf(dx), ay = fabsf(dy);
-        if (ax > ay) *vy = 0.0f; else *vx = 0.0f;
+        if (ax > ay) vy_global = 0.0f; else vx_global = 0.0f;
     }
+
+    *vx = vx_global;
+    *vy = vy_global;
 
     float target_yaw_deg = ctrl->path_locked_yaw;
     float yaw_error = angle_diff(target_yaw_deg, current_yaw);
@@ -803,7 +806,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
     else if (omega_corr_deg < -max_omega_nav) omega_corr_deg = -max_omega_nav;
     *omega = omega_corr_deg * DEG_TO_RAD;
 
-    // »ºÆô¶¯Æ½»¬
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½
     {
         float max_accel = 0.002f;
         if (desired_speed > ctrl->push_smoothed_speed) {
@@ -824,7 +827,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
     return 1;
 }
 
-/* ¿¨ËÀ¼ì²â£¨ÍÆ¶¯¶ÎÌø¹ý£© */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â£¨ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, float car_angle) {
     if (ctrl->path_purpose == PATH_PURPOSE_PUSH_STANCE)
         return;
@@ -845,7 +848,7 @@ static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, f
 
     if (now - ctrl->stuck_start_tick > 2000) {
         if (total_disp < 0.02f && total_angle < 0.05f) {
-            CarController_Stop();          // ·Ç×èÈûÉèÖÃËÙ¶ÈÎªÁã
+            CarController_Stop();          // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù¶ï¿½Îªï¿½ï¿½
             ctrl->mode = CTRL_MODE_IDLE;
             ctrl->path_following = 0;
             ctrl->complete_reason = CTRL_COMPLETE_FAIL_STUCK;
@@ -859,7 +862,7 @@ static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, f
     }
 }
 
-/* ========== ³õÊ¼»¯ºÍÖØÖÃ ========== */
+/* ========== ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 void HybridController_Init(HybridController* ctrl, GridMap* grid_map, GameState* game_state) {
     memset(ctrl, 0, sizeof(HybridController));
     ctrl->mode = CTRL_MODE_IDLE;
@@ -892,7 +895,7 @@ void HybridController_Init(HybridController* ctrl, GridMap* grid_map, GameState*
 
     ctrl->precomputed_count = 0;
 
-    // ÐÂÔö³ÉÔ±³õÊ¼»¯£¨ÐèÒªÔÚ½á¹¹ÌåÖÐÌí¼Ó£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô±ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ú½á¹¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó£ï¿½
     ctrl->stop_start_tick = 0;
     ctrl->pending_path_purpose = PATH_PURPOSE_NAV_TO_BOX;
 }
@@ -906,10 +909,10 @@ void HybridController_Reset(HybridController* ctrl) {
     HybridController_Init(ctrl, saved_grid, saved_state);
 }
 
-/* ========== Ê¶±ðµ¼º½£¨Ö§³ÖË«Ä£Ê½ÇÐ»»£© ========== */
+/* ========== Ê¶ï¿½ðµ¼ºï¿½ï¿½ï¿½Ö§ï¿½ï¿½Ë«Ä£Ê½ï¿½Ð»ï¿½ï¿½ï¿½ ========== */
 int HybridController_NavigateAndRecognize(HybridController* ctrl,
                                           int target_grid_x, int target_grid_y,
-                                           RecognTargetType_t target_type, int target_id) {
+                                          RecognTargetType_t target_type, int target_id) {
     if (ctrl->mode != CTRL_MODE_IDLE) return 0;
     float target_x, target_y, target_yaw;
     float car_x = position.x_m, car_y = position.y_m;
@@ -930,7 +933,7 @@ int HybridController_NavigateAndRecognize(HybridController* ctrl,
     return 1;
 }
 
-/* ========== ¿ØÖÆ×´Ì¬»ú ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ ========== */
 void HybridController_ComputeControl(HybridController* ctrl,
                                      float car_x, float car_y, float car_angle,
                                      float dt, float current_time,
@@ -938,15 +941,22 @@ void HybridController_ComputeControl(HybridController* ctrl,
     *out_vx = *out_vy = *out_omega = 0;
 
     switch (ctrl->mode) {
-        case CTRL_MODE_IDLE:
+        case CTRL_MODE_IDLE: {
+            *out_vx = *out_vy = 0;
+            float yaw_err = angle_diff(ctrl->path_locked_yaw, car_angle * RAD_TO_DEG);
+            float omega_deg = PD(&angle_trace_param, 0, yaw_err);
+            if (omega_deg > 25.0f) omega_deg = 25.0f;
+            else if (omega_deg < -25.0f) omega_deg = -25.0f;
+            *out_omega = omega_deg * DEG_TO_RAD;
             break;
+        }
 
         case CTRL_MODE_PATH_FOLLOWING: {
             if (!ctrl->path_following || ctrl->path_len == 0) {
                 ctrl->mode = CTRL_MODE_IDLE;
                 break;
             }
-            // ¿¨ËÀ¼ì²â
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             check_path_stuck(ctrl, car_x, car_y, car_angle);
 
             float dist_to_end;
@@ -956,7 +966,7 @@ void HybridController_ComputeControl(HybridController* ctrl,
             if (ret && dist_to_end < ctrl->path_tolerance) {
                 ctrl->path_following = 0;
                 *out_vx = *out_vy = *out_omega = 0;
-                CarController_Stop();                     // ·Ç×èÈû
+                CarController_Stop();                     // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                 ctrl->mode = CTRL_MODE_STOPPING;
                 ctrl->stop_start_tick = rt_tick_get();
                 ctrl->pending_path_purpose = ctrl->path_purpose;
@@ -978,7 +988,14 @@ void HybridController_ComputeControl(HybridController* ctrl,
                     rt_event_send(g_task_mgr.event, TASK_EVENT_CONTROLLER_IDLE);
                 }
             }
-            *out_vx = *out_vy = *out_omega = 0;
+            *out_vx = *out_vy = 0;
+            {
+                float yaw_err = angle_diff(ctrl->path_locked_yaw, car_angle * RAD_TO_DEG);
+                float omega_deg = PD(&angle_trace_param, 0, yaw_err);
+                if (omega_deg > 25.0f) omega_deg = 25.0f;
+                else if (omega_deg < -25.0f) omega_deg = -25.0f;
+                *out_omega = omega_deg * DEG_TO_RAD;
+            }
             break;
         }
 

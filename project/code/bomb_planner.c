@@ -227,7 +227,7 @@ int light_push_plan(GridMap* map, int start_r, int start_c, int goal_r, int goal
         int action;
     } PushNode;
 
-    #define BOMB_QUEUE_SIZE 1000
+    #define BOMB_QUEUE_SIZE 500
     __attribute__((section("OCRAM_CACHE"))) static PushNode queue[BOMB_QUEUE_SIZE];
     int best_pushes[MAP_ROWS][MAP_COLS];
     memset(best_pushes, -1, sizeof(best_pushes));

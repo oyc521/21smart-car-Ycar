@@ -9,8 +9,8 @@
 #include "encoder.h"
 #include <stdio.h>
 
-/* ========== »Ø¿â¹¦ÄÜÅäÖÃ ========== */
-#define ENABLE_RETURN_HOME   0
+/* ========== å›åº“åŠŸèƒ½é…ç½® ========== */
+#define ENABLE_RETURN_HOME   1
 #define HOME_X               0.2f
 #define HOME_Y               1.1f
 
@@ -25,7 +25,9 @@ extern int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
                                        int car_fine_x, int car_fine_y,
                                        int box_id, float* out_x, float* out_y,
                                        int* out_push_dir);
-extern int is_boundary_wall(Wall* wall);   // ÔÚÕ¨µ¯¹æ»®Æ÷ÖĞÊµÏÖ
+extern int is_boundary_wall(Wall* wall);
+extern void request_new_map(void);
+extern void AHRS_ResetYaw(void);   // é‡ç½®èˆªå‘ï¼ˆé™€èºä»ªï¼‰
 
 DigitMap_t g_digit_map[MAX_DIGITS];
 int g_digit_map_count = 0;
@@ -36,9 +38,11 @@ static void rebuild_pending_boxes(void);
 static int calculate_push_stance_for_dir(GameState* state, int obj_id, int obj_type,
                                           int push_dir, float* out_x, float* out_y);
 static void assign_single_box(int box_id);
-static int find_active_bomb(void);   // Ç°ÏòÉùÃ÷
+static void system_reset_for_stage2(void);
+static void system_reset_for_mode(TaskMode_t target_mode);
+static int find_active_bomb(void);   // æŸ¥æ‰¾æ´»è·ƒç‚¸å¼¹
 
-/* ---------- ¸¨Öúº¯Êı ---------- */
+/* ---------- è¾…åŠ©å‡½æ•° ---------- */
 int find_unrecognized_destination(int *out_idx) {
     for (int i = 0; i < g_game_state.num_destinations; i++) {
         if (!g_game_state.destinations[i].recognized) {
@@ -75,7 +79,7 @@ int find_unpushed_box_for_dest_digit(int dest_digit, int *out_idx) {
 
 static uint8_t recog_fail_count = 0;
 
-// ²éÕÒ»îÔ¾Õ¨µ¯£¨Ç°ÏòÉùÃ÷ÒÑÔÚÇ°Ãæ£©
+// æŸ¥æ‰¾æ´»è·ƒç‚¸å¼¹
 static int find_active_bomb(void) {
     for (int i = 0; i < g_game_state.num_bombs; i++) {
         if (g_game_state.bombs[i].active) return i;
@@ -83,6 +87,7 @@ static int find_active_bomb(void) {
     return -1;
 }
 
+// ä¸ºå•ä¸ªç®±å­åˆ†é…ç›®çš„åœ°ï¼ˆæ ¹æ®ç®±å­ç±»å‹åŒ¹é…æ•°å­—æ˜ å°„ï¼‰
 static void assign_single_box(int box_id) {
     BoxTypeEnum_t box_type = g_game_state.boxes[box_id].type;
     for (int i = 0; i < g_digit_map_count; i++) {
@@ -185,7 +190,7 @@ void start_next_recognition(void) {
             recog_fail_count = 0;
             wireless_uart_send_string("[TaskMgr] Recognition failed repeatedly, skip.\r\n");
         } else if (recog_fail_count == 1) {
-            // Ê×´ÎÊ§°Ü£º³¢ÊÔÓÃÕ¨µ¯Õ¨¿ªµ²Â·µÄÇ½£¨ÅÅ³ı±ß½çÇ½£©
+            // é¦–æ¬¡å¤±è´¥ï¼šå°è¯•ç”¨ç‚¸å¼¹ç‚¸å¼€æŒ¡è·¯çš„å¢™ï¼ˆæ’é™¤è¾¹ç•Œå¢™ï¼‰
             int bomb_id = find_active_bomb();
             if (bomb_id >= 0) {
                 float bomb_ix, bomb_iy;
@@ -199,7 +204,7 @@ void start_next_recognition(void) {
                 if (car_fx < 0) car_fx = 0; if (car_fx >= FINE_COLS) car_fx = FINE_COLS - 1;
                 if (car_fy < 0) car_fy = 0; if (car_fy >= FINE_ROWS) car_fy = FINE_ROWS - 1;
 
-                // ¼ÓËø±£»¤ÁÙÊ±ĞŞ¸ÄµØÍ¼
+                // åŠ é”ä¿æŠ¤ä¸´æ—¶ä¿®æ”¹åœ°å›¾
                 if (g_map_mutex) rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
 
                 for (int w = 0; w < g_game_state.num_walls; w++) {
@@ -214,7 +219,7 @@ void start_next_recognition(void) {
                     for (int dy = 0; dy < 4; dy++)
                         for (int dx = 0; dx < 4; dx++)
                             saved[dy][dx] = g_grid_map.occupancy[base_y+dy][base_x+dx];
-                    // ÁÙÊ±ÒÆ³ıÇ½±Ú
+                    // ä¸´æ—¶ç§»é™¤å¢™å£
                     for (int dy = 0; dy < 4; dy++)
                         for (int dx = 0; dx < 4; dx++)
                             g_grid_map.occupancy[base_y+dy][base_x+dx] = OCC_FREE;
@@ -271,14 +276,14 @@ void start_next_recognition(void) {
                                 if (tail < FINE_COLS * FINE_ROWS) {
                                     qx[tail] = nx; qy[tail] = ny; tail++;
                                 } else {
-                                    // ¶ÓÁĞÂú£¬Ç¿ÖÆÍË³ö£¨Êµ¼Ê²»»á·¢Éú£©
+                                    // é˜Ÿåˆ—æ»¡ï¼Œå¼ºåˆ¶é€€å‡ºï¼ˆå®é™…ä¸ä¼šå‘ç”Ÿï¼‰
                                     break;
                                 }
                             }
                         }
                     }
 
-                    // »Ö¸´Ç½±Ú
+                    // æ¢å¤å¢™å£
                     for (int dy = 0; dy < 4; dy++)
                         for (int dx = 0; dx < 4; dx++)
                             g_grid_map.occupancy[base_y+dy][base_x+dx] = saved[dy][dx];
@@ -311,7 +316,7 @@ void start_next_recognition(void) {
                                 position.x_m, position.y_m,
                                 g_ctrl.precomputed_stand_x,
                                 g_ctrl.precomputed_stand_y)) {
-                            recog_fail_count = 0;   // ÖØÖÃÊ§°Ü¼ÆÊı
+                            recog_fail_count = 0;   // é‡ç½®å¤±è´¥è®¡æ•°
                             g_task_mgr.state = TASK_STATE_EXECUTE_BOX;
                             wireless_uart_send_string("[TaskMgr] Bomb path for recog.\r\n");
                             return;
@@ -478,10 +483,14 @@ void task_manager_thread_entry(void *parameter) {
     while (1) {
         if (rt_event_recv(g_task_mgr.event,
                           TASK_EVENT_CONTROLLER_IDLE | TASK_EVENT_MAP_READY |
-                          TASK_EVENT_RECOG_DONE | TASK_EVENT_RECOG_FAILED,
+                          TASK_EVENT_RECOG_DONE | TASK_EVENT_RECOG_FAILED |
+                          0x80,
                           RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,
                           RT_WAITING_FOREVER,
                           &recv_set) == RT_EOK) {
+
+            if (recv_set & 0x80) {
+            }
 
             if (recv_set & TASK_EVENT_RECOG_DONE) {
                 if (g_task_mgr.state == TASK_STATE_RECOGNIZE_DEST) {
@@ -499,11 +508,27 @@ void task_manager_thread_entry(void *parameter) {
             }
 
             if (recv_set & TASK_EVENT_CONTROLLER_IDLE) {
-                if (g_task_mgr.state == TASK_STATE_RETURNING) {
-                    if (g_ctrl.complete_reason == CTRL_COMPLETE_SUCCESS) {
+                if (g_task_mgr.state == TASK_STATE_MOVE_OUT) {
+                    if (g_task_mgr.mode == TASK_MODE_STAGE1) {
+                        g_task_mgr.state = TASK_STATE_WAIT_MAP;
+                    } else {
                         g_task_mgr.state = TASK_STATE_IDLE;
-                        wireless_uart_send_string("[Return] Arrived home.\r\n");
-                        CarController_Stop();
+                    }
+                    rt_thread_mdelay(500);//åœç¨³ç­‰å¾…åœ°å›¾æ›´æ–°
+                    waiting_map = 1;//ç­‰å¾…è¯·æ±‚
+                    request_new_map();
+                    wireless_uart_send_string("[TaskMgr] Moved out, requesting map...\r\n");
+                } else if (g_task_mgr.state == TASK_STATE_RETURNING) {
+                    if (g_ctrl.complete_reason == CTRL_COMPLETE_SUCCESS) {
+                        if (g_task_mgr.mode == TASK_MODE_STAGE1) {
+                            system_reset_for_mode(TASK_MODE_STAGE2);
+                        } else if (g_task_mgr.mode == TASK_MODE_STAGE2) {
+                            system_reset_for_mode(TASK_MODE_STAGE3);
+                        } else {
+                            RotateToAngleIMU(0.0f);
+                            g_task_mgr.state = TASK_STATE_IDLE;
+                            wireless_uart_send_string("[Return] All stages completed.\r\n");
+                        }
                     } else {
                         wireless_uart_send_string("[Return] Failed, will retry.\r\n");
                         g_task_mgr.retry_count++;
@@ -519,7 +544,7 @@ void task_manager_thread_entry(void *parameter) {
 
             if (recv_set & TASK_EVENT_MAP_READY) {
                 if (g_task_mgr.state == TASK_STATE_WAIT_MAP) {
-                    // ÊÓ¾õĞ£Õı
+                    // è§†è§‰æ ¡æ­£
                     if (is_vision_valid()) {
                         float vision_x, vision_y;
                         get_vision_position(&vision_x, &vision_y);
@@ -536,17 +561,13 @@ void task_manager_thread_entry(void *parameter) {
                     } else if (g_task_mgr.pending_box_count > 0) {
                         g_task_mgr.state = TASK_STATE_PLANNING_BOX;
                     } else {
-#if ENABLE_RETURN_HOME
-                        g_task_mgr.state = TASK_STATE_RETURNING;
-                        wireless_uart_send_string("All tasks done, returning home.\r\n");
-#else
-                        if (g_task_mgr.mode == TASK_MODE_STAGE2 && !g_task_mgr.all_box_recognized) {
-                            g_task_mgr.state = TASK_STATE_RECOGNIZE_BOX;
-                            start_next_recognition();
+                        if (g_task_mgr.mode == TASK_MODE_STAGE1) {
+                            g_task_mgr.state = TASK_STATE_RETURNING;
+                            wireless_uart_send_string("[TaskMgr] Stage1 done. Returning home.\r\n");
                         } else {
-                            g_task_mgr.state = TASK_STATE_IDLE;
+                            g_task_mgr.state = TASK_STATE_RETURNING;
+                            wireless_uart_send_string("[TaskMgr] Stage done. Returning home.\r\n");
                         }
-#endif
                     }
                 } else if (g_task_mgr.state == TASK_STATE_IDLE) {
                     HybridController_Reset(&g_ctrl);
@@ -584,6 +605,30 @@ static void task_state_machine(void) {
         case TASK_STATE_RECOGNIZE_DEST:
         case TASK_STATE_RECOGNIZE_BOX:
             break;
+
+        case TASK_STATE_MOVE_OUT: {
+            if (g_ctrl.mode != CTRL_MODE_IDLE) break;
+            float cx = position.x_m;
+            float cy = position.y_m;
+            g_ctrl.current_path[0][0] = cx;
+            g_ctrl.current_path[0][1] = cy;
+            g_ctrl.current_path[1][0] = cx + 0.20f;
+            g_ctrl.current_path[1][1] = cy;
+            g_ctrl.path_len = 2;
+            g_ctrl.path_following = 1;
+            g_ctrl.path_purpose = PATH_PURPOSE_MOVE_ACTION;
+            g_ctrl.use_tangent_heading = 0;
+            g_ctrl.path_locked_yaw = position.yaw;
+            g_ctrl.max_speed = 0.10f;
+            g_ctrl.min_speed = 0.06f;
+            g_ctrl.path_tolerance = 0.03f;
+            g_ctrl.push_smoothed_speed = 0.0f;
+            g_ctrl.axial_tracking = 0;
+            PID_Reset(&angle_trace_param);
+            g_ctrl.mode = CTRL_MODE_PATH_FOLLOWING;
+            wireless_uart_send_string("[TaskMgr] Moving out of garage...\r\n");
+            break;
+        }
 
         case TASK_STATE_RETURNING: {
 #if ENABLE_RETURN_HOME
@@ -670,6 +715,7 @@ static void task_state_machine(void) {
                 if (HybridController_PlanPathToPoint(&g_ctrl, car_x, car_y,
                                                      g_ctrl.precomputed_stand_x,
                                                      g_ctrl.precomputed_stand_y)) {
+                    g_ctrl.path_locked_yaw = position.yaw;
                     g_task_mgr.retry_count = 0;
                     g_task_mgr.current_box_id = box_id;
                     g_task_mgr.current_bomb_id = -1;
@@ -715,6 +761,7 @@ static void task_state_machine(void) {
                             if (HybridController_PlanPathToPoint(&g_ctrl, car_x, car_y,
                                                                  g_ctrl.precomputed_stand_x,
                                                                  g_ctrl.precomputed_stand_y)) {
+                                g_ctrl.path_locked_yaw = position.yaw;
                                 g_task_mgr.retry_count = 0;
                                 g_task_mgr.current_box_id = box_id;
                                 g_task_mgr.current_bomb_id = bomb_id;
@@ -729,7 +776,7 @@ static void task_state_machine(void) {
                                 if (plan_retry >= 3) {
                                     g_game_state.boxes[box_id].state = 2;
                                     need_map_update = 1;
-                                    g_task_mgr.state = TASK_STATE_WAIT_MAP;
+    g_task_mgr.state = TASK_STATE_MOVE_OUT;
                                     plan_retry = 0;
                                 } else {
                                     rt_thread_mdelay(200);
@@ -776,7 +823,7 @@ static void task_state_machine(void) {
             if (waiting_map) break;
             if (g_ctrl.mode != CTRL_MODE_IDLE) break;
 
-            // ¶Î¼ä¹ı¶É£º´Ó action_queue ÍÆËãÏä×ÓÎ»ÒÆ£¬Ë¢ĞÂµØÍ¼
+            // æ®µé—´è¿‡æ¸¡ï¼šä» action_queue æ¨ç®—ç®±å­ä½ç§»ï¼Œåˆ·æ–°åœ°å›¾
             if (g_task_mgr.action_index > g_task_mgr.last_push_end_idx) {
                 float dx = 0, dy = 0;
                 for (int i = g_task_mgr.last_push_end_idx; i < g_task_mgr.action_index; i++) {
@@ -887,4 +934,48 @@ static void task_state_machine(void) {
             g_task_mgr.state = TASK_STATE_IDLE;
             break;
     }
+}
+
+static void system_reset_for_stage2(void)
+{
+    system_reset_for_mode(TASK_MODE_STAGE2);
+}
+
+static void system_reset_for_mode(TaskMode_t target_mode)
+{
+    char buf[64];
+    rt_sprintf(buf, "[Reset] Switching to Stage %d...\r\n", (int)target_mode + 1);
+    wireless_uart_send_string(buf);
+
+    CarController_Stop();
+    CarController_Update();
+    rt_thread_mdelay(50);
+
+    EncoderReset();
+    Position_Init();
+    Position_ResetYaw();
+    AHRS_ResetYaw();
+
+    g_task_mgr.state = TASK_STATE_MOVE_OUT;
+    g_task_mgr.mode = target_mode;
+    g_task_mgr.current_box_id = -1;
+    g_task_mgr.current_bomb_id = -1;
+    g_task_mgr.action_total = 0;
+    g_task_mgr.action_index = 0;
+    g_task_mgr.pending_box_count = 0;
+    g_task_mgr.retry_count = 0;
+    g_task_mgr.all_dest_recognized = 0;
+    g_task_mgr.all_box_recognized = 0;
+    g_digit_map_count = 0;
+    recog_fail_count = 0;
+
+    memset(&g_game_state, 0, sizeof(g_game_state));
+    memset(&g_grid_map, 0, sizeof(g_grid_map));
+
+    HybridController_Reset(&g_ctrl);
+
+    clear_vision_valid();
+
+    rt_sprintf(buf, "[Reset] Stage %d ready, will move out...\r\n", (int)target_mode + 1);
+    wireless_uart_send_string(buf);
 }

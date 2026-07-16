@@ -1,0 +1,35 @@
+Build started: Project: rt1064
+*** Using Compiler 'V6.19', folder: 'E:\Keil_v5\ARM\ARMCLANG\Bin'
+Build target 'nor_sdram_zf_dtcm'
+../user/src/main.c(276): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
+    ctrl_thread = rt_thread_create("control", control_thread_entry, NULL,
+    ^~~~~~~~~~~
+    uart_thread
+../user/src/main.c(264): note: 'uart_thread' declared here
+    rt_thread_t uart_thread = rt_thread_create("uart_parse",
+                ^
+../user/src/main.c(278): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
+    if (ctrl_thread) {
+        ^~~~~~~~~~~
+        uart_thread
+../user/src/main.c(264): note: 'uart_thread' declared here
+    rt_thread_t uart_thread = rt_thread_create("uart_parse",
+                ^
+../user/src/main.c(279): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
+        rt_thread_startup(ctrl_thread);
+                          ^~~~~~~~~~~
+                          uart_thread
+../user/src/main.c(264): note: 'uart_thread' declared here
+    rt_thread_t uart_thread = rt_thread_create("uart_parse",
+                ^
+3 errors generated.
+compiling main.c...
+compiling uart_receiver.c...
+compiling position.c...
+compiling debug.c...
+compiling grid_map.c...
+compiling hybrid_controller.c...
+compiling task_manager.c...
+".\Objects\rt1064.axf" - 3 Error(s), 0 Warning(s).
+Target not created.
+Build Time Elapsed:  00:00:02

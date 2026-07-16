@@ -9,34 +9,35 @@
 #include "zf_common_headfile.h"
 #include "hybrid_controller.h"
 
-// È«¾Ö±äÁ¿¶¨Òå
+// È«ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 Position_t position = {0};
 extern CarController_t car_ctrl;
 extern float gyro_bias_z;
 
-// º½ÏòÈÚºÏ±äÁ¿
+// ï¿½ï¿½ï¿½ï¿½ï¿½ÚºÏ±ï¿½ï¿½ï¿½
 static uint8_t yaw_fusion_inited = 0;
 static float  yaw_fused_rad = 0.0f;
-// Î»ÒÆµÍÍ¨ÂË²¨Æ÷£¨ÓÃÓÚÆ½»¬Î»ÒÆÔöÁ¿£©
+// Î»ï¿½Æµï¿½Í¨ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static LowPassFilter_t disp_x_filter;
 static LowPassFilter_t disp_y_filter;
 static uint8_t disp_filter_inited = 0;
-// »¬¶¯Æ½¾ùÂË²¨Æ÷²ÎÊý
-#define YAW_WINDOW_SIZE 5
+// ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+#define YAW_WINDOW_SIZE 1    //ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¸ï¿½Îª2
 static float yaw_buffer[YAW_WINDOW_SIZE] = {0};
 static uint8_t yaw_buf_idx = 0;
 static uint8_t yaw_buf_filled = 0;
 
-// PID¿ØÖÆÆ÷¶¨Òå
+// PIDï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 PIDParam_t angle_trace_param;
 PIDParam_t pos_x_param, pos_y_param;
+float Kp_rot = 1.2f;
 
-// ½Ç¶È PID ²ÎÊý×é
-static PIDParam_t angle_pid_nav;
+// ï¿½Ç¶ï¿½ PID ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+PIDParam_t angle_pid_nav;
 static PIDParam_t angle_pid_align;
 static PIDParam_t angle_pid_push;
 
-// ÄÚ²¿×´Ì¬
+// ï¿½Ú²ï¿½×´Ì¬
 static uint8_t position_initialized = 0;
 
 void Position_Init(void)
@@ -56,7 +57,7 @@ void Position_Init(void)
     
     PositionPIDParamInit();
     
-    // ÖØÖÃÎ»ÒÆµÍÍ¨ÂË²¨Æ÷
+    // ï¿½ï¿½ï¿½ï¿½Î»ï¿½Æµï¿½Í¨ï¿½Ë²ï¿½ï¿½ï¿½
     LowPassFilter_Init(&disp_x_filter, 0.1f);
     LowPassFilter_Init(&disp_y_filter, 0.1f);
     disp_filter_inited = 1;
@@ -66,24 +67,24 @@ void Position_Init(void)
 
 void PositionPIDParamInit(void)
 {
-    // Î»ÖÃ»· PID£¨±¸ÓÃ£©
+    // Î»ï¿½Ã»ï¿½ PIDï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½
     float kp_adjust = 2.0f, kd_adjust = 0.4f;
     PIDInit(&pos_x_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
     PIDInit(&pos_y_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
 
-    // µ¼º½ÓÃ½Ç¶È PID
-    float nav_kp = 0.8f;
-    float nav_kd = 0.2f;
+    // å¯¼èˆª PID
+    float nav_kp = 1.4f;
+    float nav_kd = 1.4f;
     PIDInit(&angle_pid_nav, nav_kp, 0.0f, nav_kd, 30.0f, -30.0f);
 
-    // ¾«¶Ô×¼ÓÃ
-    float align_kp = 0.5f;
-    float align_kd = 0.2f;
+    // å¯¹å‡†
+    float align_kp = 1.4f;
+    float align_kd = 1.4f;
     PIDInit(&angle_pid_align, align_kp, 0.0f, align_kd, 20.0f, -20.0f);
 
-    // ÍÆ¶¯ÓÃ
-    float push_kp = 0.5f;
-    float push_kd = 0.2f;
+    // æŽ¨åŠ¨
+    float push_kp = 1.4f;
+    float push_kd = 1.4f;
     PIDInit(&angle_pid_push, push_kp, 0.0f, push_kd, 40.0f, -40.0f);
 
     angle_trace_param = angle_pid_nav;
@@ -107,36 +108,36 @@ void Position_Update(void)
         return;
     }
 
-    // ===== Ö»ÔÚ±àÂëÆ÷ÓÐÐÂÊý¾ÝÊ±´¦Àí£¬±ÜÃâÖØ¸´ÀÛ¼Ó =====
+    // ===== Ö»ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø¸ï¿½ï¿½Û¼ï¿½ =====
     if (!encoder_updated_flag) return;
 
-    // ¶ÁÈ¡Âö³åÔöÁ¿²¢Á¢¼´Çå³ý±êÖ¾
+    // ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾
     int16_t deltas[3];
     rt_enter_critical();
     encoder_updated_flag = 0;
     EncoderGetDeltas(deltas);
     rt_exit_critical();
 
-    // Âö³åÔöÁ¿ -> ÂÖ×ÓÎ»ÒÆÔöÁ¿£¨Ã×£©
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ -> ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×£ï¿½
     float meters_per_pulse = WHEEL_CIRCUMFERENCE / (ENCODER_PPR * ENCODER_GEAR_RATIO);
     float wheel_disp[3];
     wheel_disp[0] = deltas[2] * meters_per_pulse;
     wheel_disp[1] = deltas[1] * meters_per_pulse;
     wheel_disp[2] = deltas[0] * meters_per_pulse;
 
-    // ÔË¶¯Ñ§Õý½â£ºÂÖ×ÓÎ»ÒÆÔöÁ¿ ¡ú ³µÌåÎ»ÒÆÔöÁ¿
+    // ï¿½Ë¶ï¿½Ñ§ï¿½ï¿½ï¿½â£ºï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     float vx_body, vy_body, omega;
     Kinematics_Forward(wheel_disp, &vx_body, &vy_body, &omega);
 
-    // Ë«Öá¶ÀÁ¢±ê¶¨Òò×Ó£¨ÐèÖØÐÂ±ê¶¨£©
+    // Ë«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê¶¨ï¿½ï¿½ï¿½Ó£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â±ê¶¨ï¿½ï¿½
     float scale_x = 4.13f;
     float scale_y = 4.13f;
     vx_body *= scale_x;
     vy_body *= scale_y;
 
-    // Î»ÒÆÔöÁ¿Ö±½ÓÊ¹ÓÃ£¬²»ÔÙ½øÐÐµÍÍ¨ÂË²¨
+    // Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Ê¹ï¿½Ã£ï¿½ï¿½ï¿½ï¿½Ù½ï¿½ï¿½Ðµï¿½Í¨ï¿½Ë²ï¿½
 
-    // AHRS ¸üÐÂ + »¬¶¯Æ½¾ùº½Ïò
+    // AHRS ï¿½ï¿½ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     AHRS_Update();
     float ahrs_yaw_rad = AHRS_GetYaw() * DEG_TO_RAD;
 
@@ -149,12 +150,12 @@ void Position_Update(void)
     }
     float filtered_yaw_rad = sum / (float)count;
 
-    // ½Ç¶È¹éÒ»»¯
+    // ï¿½Ç¶È¹ï¿½Ò»ï¿½ï¿½
     while (filtered_yaw_rad >  M_PI) filtered_yaw_rad -= 2*M_PI;
     while (filtered_yaw_rad < -M_PI) filtered_yaw_rad += 2*M_PI;
     yaw_fused_rad = filtered_yaw_rad;
 
-    // Ðý×ªµ½Î»ÒÆÈ«¾Ö×ø±êÏµ£¨Ö±½ÓÊ¹ÓÃÔ­Ê¼Î»ÒÆÔöÁ¿£©
+    // ï¿½ï¿½×ªï¿½ï¿½Î»ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½Ö±ï¿½ï¿½Ê¹ï¿½ï¿½Ô­Ê¼Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     float v_forward =  vx_body;
     float v_left    = -vy_body;
     float cos_yaw = cosf(filtered_yaw_rad);
@@ -162,23 +163,23 @@ void Position_Update(void)
     float vx_global = v_forward * cos_yaw - v_left * sin_yaw;
     float vy_global = v_forward * sin_yaw + v_left * cos_yaw;
 
-    // »ý·Ö
+    // ï¿½ï¿½ï¿½ï¿½
     position.x_m += vx_global;
     position.y_m -= vy_global;
 
-    // Êä³ö
+    // ï¿½ï¿½ï¿½
     position.yaw_rad = filtered_yaw_rad;
     position.x_dis = position.x_m * 100.0f;
     position.y_dis = position.y_m * 100.0f;
     position.yaw   = filtered_yaw_rad * RAD_TO_DEG;
 
-    // µ÷ÊÔ´òÓ¡
+    // ï¿½ï¿½ï¿½Ô´ï¿½Ó¡
     static uint32_t last_debug_tick = 0;
     if (now - last_debug_tick > RT_TICK_PER_SECOND / 5) {
         last_debug_tick = now;
         char buf[128];
         rt_sprintf(buf, "PLUSE: dx=%d dy=%d x=%d y=%d yaw=%d\r\n",
-                   (int)(vx_body * 1000),   // Ê¹ÓÃÔ­Ê¼Î»ÒÆÔöÁ¿£¬µ¥Î» mm
+                   (int)(vx_body * 1000),   // Ê¹ï¿½ï¿½Ô­Ê¼Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î» mm
                    (int)(vy_body * 1000),
                    (int)(position.x_m * 1000),
                    (int)(position.y_m * 1000),
@@ -208,7 +209,6 @@ int RotateToAngleIMU(float target_angle)
         return 1;
     }
 
-    float Kp_rot = 1.2f;
     uint32_t stable_start = 0;
     uint32_t last_print = 0;
 
@@ -393,7 +393,7 @@ void Position_Set(float x_m, float y_m, float yaw_rad)
     position.y_dis = y_m * 100.0f;
     position.yaw = yaw_rad * RAD_TO_DEG;
 
-    // ÖØÖÃÂË²¨Æ÷£¬±ÜÃâ¾É×´Ì¬Ó°ÏìÐÂÎ»ÖÃ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬Ó°ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½
     LowPassFilter_Init(&disp_x_filter, 0.1f);
     LowPassFilter_Init(&disp_y_filter, 0.1f);
 }

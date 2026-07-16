@@ -11,14 +11,16 @@ typedef enum {
     TASK_STATE_RECOGNIZE_BOX,
     TASK_STATE_ASSIGN_BOXES,
     TASK_STATE_PLANNING_BOX,
-    TASK_STATE_EXECUTE_BOX,       // 统一执行推动（箱/炸弹）
+    TASK_STATE_EXECUTE_BOX,
     TASK_STATE_WAIT_MAP,
-    TASK_STATE_RETURNING          // 新增：回库
+    TASK_STATE_RETURNING,
+    TASK_STATE_MOVE_OUT
 } TaskState;
 
 typedef enum {
     TASK_MODE_STAGE1 = 0,
-    TASK_MODE_STAGE2 = 1
+    TASK_MODE_STAGE2 = 1,
+    TASK_MODE_STAGE3 = 2
 } TaskMode_t;
 
 typedef struct {
@@ -32,20 +34,17 @@ typedef struct {
     uint8_t retry_count;
     uint32_t wait_start_tick;
 
-    // 识别相关
     int current_recog_target_id;
     RecognTargetType_t current_recog_type;
     uint8_t all_dest_recognized;
     uint8_t all_box_recognized;
 
-    // 分段推动
     int action_queue[200];
     int action_total;
     int action_index;
-		int last_push_end_idx; 
+    int last_push_end_idx;
 } TaskManager;
 
-/* 事件标志 */
 #define TASK_EVENT_MAP_READY        0x10
 #define TASK_EVENT_RECOG_BOX        0x01
 #define TASK_EVENT_RECOG_DEST       0x02
