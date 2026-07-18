@@ -9,7 +9,8 @@
 #include "zf_common_headfile.h"
 #include "hybrid_controller.h"
 
-// ȫ�ֱ�������
+extern HybridController g_ctrl;
+
 Position_t position = {0};
 extern CarController_t car_ctrl;
 extern float gyro_bias_z;
@@ -178,8 +179,9 @@ void Position_Update(void)
     if (now - last_debug_tick > RT_TICK_PER_SECOND / 5) {
         last_debug_tick = now;
         char buf[128];
-        rt_sprintf(buf, "PLUSE: dx=%d dy=%d x=%d y=%d yaw=%d\r\n",
-                   (int)(vx_body * 1000),   // ʹ��ԭʼλ����������λ mm
+        rt_sprintf(buf, "PLUSE: t=%d dx=%d dy=%d x=%d y=%d yaw=%d\r\n",
+                   g_ctrl.path_target_idx,
+                   (int)(vx_body * 1000),
                    (int)(vy_body * 1000),
                    (int)(position.x_m * 1000),
                    (int)(position.y_m * 1000),
