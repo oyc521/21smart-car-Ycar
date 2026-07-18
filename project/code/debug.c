@@ -24,8 +24,8 @@ extern PIDParam_t pos_x_param, pos_y_param;
 extern rt_mutex_t g_map_mutex;
 extern GridMap g_grid_map;
 extern GameState g_game_state;
-extern uint8_t waiting_map;
-extern uint8_t need_map_update;
+extern volatile uint8_t waiting_map;
+extern volatile uint8_t need_map_update;
 extern uint8_t system_started;
 extern uint8_t yaw_initialized;
 extern seekfree_assistant_receive_callback_function seekfree_assistant_receive_callback;
@@ -93,20 +93,33 @@ static const DebugChannel_t group_tracking[DEBUG_CHANNEL_COUNT] = {
     { "MAX_LOOKAHD",    &g_ctrl.max_lookahead,              0.50f,  0.10f, 1.00f },
     { "POS_KP",         &pos_x_param.kp,                    2.0f,   0.0f,  10.0f  },
     { "POS_KD",         &pos_x_param.kd,                    0.8f,   0.0f,  5.0f   },
+    { "POS_KI",         &pos_x_param.ki,                    0.02f,  0.0f,  0.5f   },
     { NULL,             NULL,                               0.0f,   0.0f,  0.0f   },
-    { NULL,             NULL,                               0.0f,   0.0f,  0.0f   },
+};
+
+static const DebugChannel_t group_lateral[DEBUG_CHANNEL_COUNT] = {
+    { "LAT_KP",         &angle_pid_lateral.kp,  1.4f,   0.0f,  5.0f   },
+    { "LAT_KD",         &angle_pid_lateral.kd,  1.4f,   0.0f,  3.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
+    { NULL,             NULL,                   0.0f,   0.0f,  0.0f   },
 };
 
 static const DebugChannel_t *group_tables[DEBUG_GROUP_COUNT] = {
     group_speed,
     group_angle,
     group_tracking,
+    group_lateral,
 };
 
 static const char *group_names[DEBUG_GROUP_COUNT] = {
     "speed",
     "angle",
     "tracking",
+    "lateral",
 };
 
 static DebugGroup_t current_group = DEBUG_GROUP_SPEED;
@@ -135,6 +148,7 @@ static void test_straight(float dist);
 static void test_digit_recog(void);
 static void test_box_recog(void);
 static void test_lateral(float dist);
+static void test_push(int dir, int steps);
 static void test_square(float side);
 
 /* ========== 参数组管理函数 ========== */
@@ -179,12 +193,17 @@ void debug_apply_parameter(uint8_t channel, float value)
             angle_trace_param.kp = angle_pid_nav.kp;
             angle_trace_param.kd = angle_pid_nav.kd;
             PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
         }
         break;
+    case DEBUG_GROUP_LATERAL:
+        break;
     case DEBUG_GROUP_TRACKING:
-        if (channel == 4 || channel == 5) {
+        if (channel >= 4 && channel <= 6) {
             pos_y_param.kp = pos_x_param.kp;
             pos_y_param.kd = pos_x_param.kd;
+            pos_y_param.ki = pos_x_param.ki;
         }
         break;
     }
@@ -230,8 +249,14 @@ static void print_save(void)
         break;
     case DEBUG_GROUP_ANGLE:
         rt_sprintf(buf, "// Angle PID x1000: kp=%d kd=%d\r\n",
-                   (int)(angle_trace_param.kp * 1000),
-                   (int)(angle_trace_param.kd * 1000));
+                   (int)(angle_pid_nav.kp * 1000),
+                   (int)(angle_pid_nav.kd * 1000));
+        wireless_uart_send_string(buf);
+        break;
+    case DEBUG_GROUP_LATERAL:
+        rt_sprintf(buf, "// Lateral PID x1000: kp=%d kd=%d\r\n",
+                   (int)(angle_pid_lateral.kp * 1000),
+                   (int)(angle_pid_lateral.kd * 1000));
         wireless_uart_send_string(buf);
         break;
     case DEBUG_GROUP_TRACKING:
@@ -243,9 +268,10 @@ static void print_save(void)
                    (int)(g_ctrl.min_lookahead * 1000),
                    (int)(g_ctrl.max_lookahead * 1000));
         wireless_uart_send_string(buf);
-        rt_sprintf(buf, "pos_kp=%d pos_kd=%d\r\n",
+        rt_sprintf(buf, "pos_kp=%d pos_kd=%d pos_ki=%d\r\n",
                    (int)(pos_x_param.kp * 1000),
-                   (int)(pos_x_param.kd * 1000));
+                   (int)(pos_x_param.kd * 1000),
+                   (int)(pos_x_param.ki * 1000));
         wireless_uart_send_string(buf);
         break;
     }
@@ -260,6 +286,7 @@ static void print_help(void)
     wireless_uart_send_string(" test straight <cm> - go straight, arg in cm\r\n");
     wireless_uart_send_string(" test square <cm>   - square path, side in cm\r\n");
     wireless_uart_send_string(" test lateral <cm>  - go sideways, arg in cm\r\n");
+    wireless_uart_send_string(" test push <dir> [steps] - push, dir=0-3, steps×0.2m\r\n");
     wireless_uart_send_string(" test empty   - load built-in empty map\r\n");
     wireless_uart_send_string(" test digit   - UART4 digit recognition test\r\n");
     wireless_uart_send_string(" test box     - UART4 box type recognition test\r\n");
@@ -309,6 +336,8 @@ static void test_straight(float dist)
     g_ctrl.push_smoothed_speed = 0.0f;
     g_ctrl.axial_tracking = 0;
     PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
     {
         float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
         while (e > 180.0f) e -= 360.0f;
@@ -442,6 +471,8 @@ static void test_square(float side)
     g_ctrl.push_smoothed_speed = 0.0f;
     g_ctrl.axial_tracking = 0;
     PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
     {
         float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
         while (e > 180.0f) e -= 360.0f;
@@ -524,6 +555,8 @@ static void test_lateral(float dist)
     g_ctrl.push_smoothed_speed = 0.0f;
     g_ctrl.axial_tracking = 0;
     PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
     {
         float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
         while (e > 180.0f) e -= 360.0f;
@@ -570,6 +603,96 @@ static void test_lateral(float dist)
     float actual = position.y_m - start_y;
     rt_sprintf(buf, "[LAT] tgt=%d act=%d err=%d mm\r\n",
                (int)(dist * 1000), (int)(actual * 1000), (int)((actual - dist) * 1000));
+    wireless_uart_send_string(buf);
+
+    g_ctrl.mode = CTRL_MODE_IDLE;
+    g_ctrl.path_following = 0;
+}
+
+static void test_push(int dir, int steps)
+{
+    if (g_ctrl.mode != CTRL_MODE_IDLE) {
+        wireless_uart_send_string("[PUSH] Controller busy.\r\n");
+        return;
+    }
+    if (dir < 0 || dir > 3 || steps < 1) {
+        wireless_uart_send_string("[PUSH] dir=0-3, steps>=1\r\n");
+        return;
+    }
+
+    float dx = 0, dy = 0;
+    if (dir == 0)      dy = -0.2f * steps;
+    else if (dir == 1) dx =  0.2f * steps;
+    else if (dir == 2) dy =  0.2f * steps;
+    else if (dir == 3) dx = -0.2f;
+
+    float start_x = position.x_m;
+    float start_y = position.y_m;
+
+    g_ctrl.current_path[0][0] = start_x;
+    g_ctrl.current_path[0][1] = start_y;
+    g_ctrl.current_path[1][0] = start_x + dx;
+    g_ctrl.current_path[1][1] = start_y + dy;
+    g_ctrl.path_len = 2;
+    g_ctrl.path_following = 1;
+    g_ctrl.path_purpose = PATH_PURPOSE_PUSH_STANCE;
+    g_ctrl.use_tangent_heading = 0;
+    g_ctrl.path_locked_yaw = 0.0f;
+    g_ctrl.max_speed = 0.08f;
+    g_ctrl.min_speed = 0.05f;
+    g_ctrl.path_tolerance = 0.03f;
+    g_ctrl.push_smoothed_speed = 0.0f;
+    g_ctrl.axial_tracking = 0;
+    PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
+    {
+        float e = g_ctrl.path_locked_yaw - position.yaw_rad * RAD_TO_DEG;
+        while (e > 180.0f) e -= 360.0f;
+        while (e < -180.0f) e += 360.0f;
+        angle_trace_param.error_last = e;
+    }
+
+    uint8_t saved_started = system_started;
+    uint8_t saved_yaw_init = yaw_initialized;
+    system_started = 1;
+    yaw_initialized = 1;
+
+    float vx, vy, omega, dist_to_end;
+    int ret;
+    const uint32_t timeout_ms = 10000;
+    uint32_t start_tick = rt_tick_get();
+
+    char buf[64];
+    rt_sprintf(buf, "[PUSH] dir=%d steps=%d start(%d,%d)\r\n",
+               dir, steps, (int)(start_x * 1000), (int)(start_y * 1000));
+    wireless_uart_send_string(buf);
+
+    do {
+        rt_thread_mdelay(1);
+        ret = follow_path(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
+                          &vx, &vy, &omega, &dist_to_end);
+        CarController_SetSpeed(vx, vy, omega);
+        CarController_Update();
+        Position_Update();
+        rt_thread_mdelay(5);
+
+        if (rt_tick_get() - start_tick > timeout_ms) {
+            wireless_uart_send_string("[PUSH] Timeout!\r\n");
+            break;
+        }
+    } while (!(ret && g_ctrl.path_target_idx >= g_ctrl.path_len - 1
+               && dist_to_end < g_ctrl.path_tolerance));
+
+    CarController_Stop();
+    CarController_Update();
+    system_started = saved_started;
+    yaw_initialized = saved_yaw_init;
+
+    float dx_act = position.x_m - start_x;
+    float dy_act = position.y_m - start_y;
+    rt_sprintf(buf, "[PUSH] err dx=%d dy=%d mm\r\n",
+               (int)((dx_act - dx) * 1000), (int)((dy_act - dy) * 1000));
     wireless_uart_send_string(buf);
 
     g_ctrl.mode = CTRL_MODE_IDLE;
@@ -667,7 +790,7 @@ static void execute_command(char *line)
     } else if (strcmp(cmd, "test") == 0) {
         char *sub = strtok(NULL, " \r\n");
         if (!sub) {
-            wireless_uart_send_string("Usage: test <straight|square|lateral|empty|digit|box|rotate>\r\n");
+            wireless_uart_send_string("Usage: test <straight|square|lateral|push|empty|digit|box|rotate>\r\n");
             return;
         }
         if (strcmp(sub, "straight") == 0) {
@@ -682,6 +805,14 @@ static void execute_command(char *line)
             char *arg = strtok(NULL, " \r\n");
             if (arg) test_lateral((float)atoi(arg) / 100.0f);
             else wireless_uart_send_string("Usage: test lateral <cm>\r\n");
+        } else if (strcmp(sub, "push") == 0) {
+            char *arg = strtok(NULL, " \r\n");
+            char *steps_str = strtok(NULL, " \r\n");
+            if (arg) {
+                int dir = atoi(arg);
+                int steps = steps_str ? atoi(steps_str) : 1;
+                test_push(dir, steps);
+            } else wireless_uart_send_string("Usage: test push <dir> [steps]\r\n");
         } else if (strcmp(sub, "empty") == 0) {
             load_empty_map();
         } else if (strcmp(sub, "digit") == 0) {
@@ -693,7 +824,7 @@ static void execute_command(char *line)
             if (arg) test_rotate((float)atoi(arg));
             else wireless_uart_send_string("Usage: test rotate <deg>\r\n");
         } else {
-            wireless_uart_send_string("Unknown test. Available: straight, square, lateral, empty, digit, box, rotate\r\n");
+            wireless_uart_send_string("Unknown test. Available: straight, square, lateral, push, empty, digit, box, rotate\r\n");
         }
     } else if (strcmp(cmd, "setpose") == 0) {
         char *x_str = strtok(NULL, " \r\n");
@@ -729,6 +860,8 @@ static void execute_command(char *line)
         g_ctrl.path_following = 0;
         g_ctrl.path_len = 0;
         PID_Reset(&angle_trace_param);
+    PID_Reset(&pos_x_param);
+    PID_Reset(&pos_y_param);
         wireless_uart_send_string("[DBG] Controller reset. Ready for new test.\r\n");
     } else {
         char buf[64];

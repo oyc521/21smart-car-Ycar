@@ -46,8 +46,8 @@ HybridController g_ctrl;
 uint8_t system_started = 0;
 uint8_t yaw_initialized = 0;
 static uint32_t last_map_req_tick = 0;
-uint8_t waiting_map = 0;
-uint8_t need_map_update = 0;
+volatile uint8_t waiting_map = 0;
+volatile uint8_t need_map_update = 0;
 static uint8_t map_req_attempts = 0;
 
 // ϵͳ����ʱ�����ĳ�ʼ����ǣ��Ƕ��ƣ����������ο�����
@@ -83,9 +83,7 @@ static void led_blink_once(void)
 /* �� OpenArt ���������µ�ͼ��ָ�� */
 void request_new_map(void)
 {
-    wireless_uart_send_string("request_new_map called.\r\n");
     uart_write_string(UART_1, "MAP_REQ\n");
-    wireless_uart_send_string("MAP_REQ sent.\r\n");
 }
 
 /* �����߳���ں��� */
@@ -95,10 +93,9 @@ static void control_thread_entry(void *parameter)
 
     uint32_t tick = rt_tick_get();
     char buf[128];
-    float current_omega_rad = 0.0f;
-    static float last_omega_cmd = 0.0f;  // ��һ�εĽ��ٶ�ָ����ڵ������
+    static float last_omega_cmd = 0.0f;
 
-    while (1) {      
+    while (1) {
         AHRS_Update();  
         Position_Update();
 
@@ -190,21 +187,18 @@ static void control_thread_entry(void *parameter)
             HybridController_ComputeControl(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
                                             0.005f, current_time, &vx_out, &vy_out, &omega);
 
+            CarController_SetSpeed(vx_out, vy_out, omega);
+            CarController_Update();
             if (fabsf(omega - last_omega_cmd) > 0.01f) {
+                last_omega_cmd = omega;
                 char dbg[32];
                 rt_sprintf(dbg, "CMD_OMEGA:%d\r\n", (int)(omega * 1000));
                 wireless_uart_send_string(dbg);
-                last_omega_cmd = omega;
             }
-
-            CarController_SetSpeed(vx_out, vy_out, omega);
-            CarController_Update();
-            current_omega_rad = car_ctrl.current_omega;
         } else {
             // δ������δ����ʱֹͣС��
             CarController_SetSpeed(0, 0, 0);
             CarController_Update();
-            current_omega_rad = 0.0f;
         }
 
         // ��ӡ����ģʽ�仯��Ϣ

@@ -18,8 +18,8 @@ extern HybridController g_ctrl;
 extern GameState g_game_state;
 extern Position_t position;
 extern GridMap g_grid_map;
-extern uint8_t need_map_update;
-extern uint8_t waiting_map;
+extern volatile uint8_t need_map_update;
+extern volatile uint8_t waiting_map;
 extern rt_mutex_t g_map_mutex;
 extern int select_best_wall_to_destroy(GameState* state, GridMap* grid_map,
                                        int car_fine_x, int car_fine_y,
@@ -576,7 +576,7 @@ void task_manager_thread_entry(void *parameter) {
                         if (g_task_mgr.pending_box_count > 0) {
                             g_task_mgr.state = TASK_STATE_PLANNING_BOX;
                         }
-                    } else { // STAGE2
+                    } else { // STAGE2/STAGE3
                         g_task_mgr.all_dest_recognized = 0;
                         g_task_mgr.all_box_recognized = 0;
                         g_digit_map_count = 0;
@@ -618,7 +618,7 @@ static void task_state_machine(void) {
             g_ctrl.path_following = 1;
             g_ctrl.path_purpose = PATH_PURPOSE_MOVE_ACTION;
             g_ctrl.use_tangent_heading = 0;
-            g_ctrl.path_locked_yaw = position.yaw;
+            g_ctrl.path_locked_yaw = 0.0f;
             g_ctrl.max_speed = 0.10f;
             g_ctrl.min_speed = 0.06f;
             g_ctrl.path_tolerance = 0.03f;
@@ -715,7 +715,7 @@ static void task_state_machine(void) {
                 if (HybridController_PlanPathToPoint(&g_ctrl, car_x, car_y,
                                                      g_ctrl.precomputed_stand_x,
                                                      g_ctrl.precomputed_stand_y)) {
-                    g_ctrl.path_locked_yaw = position.yaw;
+                    g_ctrl.path_locked_yaw = 0.0f;
                     g_task_mgr.retry_count = 0;
                     g_task_mgr.current_box_id = box_id;
                     g_task_mgr.current_bomb_id = -1;
@@ -761,7 +761,7 @@ static void task_state_machine(void) {
                             if (HybridController_PlanPathToPoint(&g_ctrl, car_x, car_y,
                                                                  g_ctrl.precomputed_stand_x,
                                                                  g_ctrl.precomputed_stand_y)) {
-                                g_ctrl.path_locked_yaw = position.yaw;
+                                g_ctrl.path_locked_yaw = 0.0f;
                                 g_task_mgr.retry_count = 0;
                                 g_task_mgr.current_box_id = box_id;
                                 g_task_mgr.current_bomb_id = bomb_id;
@@ -823,64 +823,51 @@ static void task_state_machine(void) {
             if (waiting_map) break;
             if (g_ctrl.mode != CTRL_MODE_IDLE) break;
 
-            // 段间过渡：从 action_queue 推算箱子位移，刷新地图
             if (g_task_mgr.action_index > g_task_mgr.last_push_end_idx) {
-                float dx = 0, dy = 0;
-                for (int i = g_task_mgr.last_push_end_idx; i < g_task_mgr.action_index; i++) {
-                    int dir = g_task_mgr.action_queue[i] - 4;
-                    if (dir == 0)      dy -= 0.2f;
-                    else if (dir == 1) dx += 0.2f;
-                    else if (dir == 2) dy += 0.2f;
-                    else if (dir == 3) dx -= 0.2f;
-                }
-                int obj_id = g_ctrl.is_bomb_path ? g_task_mgr.current_bomb_id : g_task_mgr.current_box_id;
-                if (obj_id >= 0) {
-                    if (g_ctrl.is_bomb_path) {
-                        g_game_state.bombs[obj_id].x += dx;
-                        g_game_state.bombs[obj_id].y += dy;
-                    } else {
-                        g_game_state.boxes[obj_id].x += dx;
-                        g_game_state.boxes[obj_id].y += dy;
-                    }
-                }
                 g_task_mgr.last_push_end_idx = g_task_mgr.action_index;
-                refresh_grid_map(&g_game_state, &g_grid_map);
-            }
 
-            if (g_task_mgr.action_index >= g_task_mgr.action_total) {
-                if (g_ctrl.is_bomb_path) {
-                    if (g_task_mgr.current_bomb_id >= 0) {
-                        g_game_state.bombs[g_task_mgr.current_bomb_id].active = 0;
-                        char buf[64];
-                        rt_sprintf(buf, "[TaskMgr] Bomb %d used, deactivated.\r\n", g_task_mgr.current_bomb_id);
-                        wireless_uart_send_string(buf);
+                if (g_task_mgr.action_index >= g_task_mgr.action_total) {
+                    if (g_ctrl.is_bomb_path) {
+                        if (g_task_mgr.current_bomb_id >= 0) {
+                            g_game_state.bombs[g_task_mgr.current_bomb_id].active = 0;
+                        }
+                    } else {
+                        if (g_task_mgr.current_box_id >= 0) {
+                            g_game_state.boxes[g_task_mgr.current_box_id].state = 1;
+                            char buf[64];
+                            rt_sprintf(buf, "[TaskMgr] Box %d pushed, state=1.\r\n", g_task_mgr.current_box_id);
+                            wireless_uart_send_string(buf);
+                        }
                     }
-                } else {
-                    if (g_task_mgr.current_box_id >= 0) {
-                        g_game_state.boxes[g_task_mgr.current_box_id].state = 1;
-                        char buf[64];
-                        rt_sprintf(buf, "[TaskMgr] Box %d pushed, state=1.\r\n", g_task_mgr.current_box_id);
-                        wireless_uart_send_string(buf);
+                    need_map_update = 1;
+                    g_ctrl.precomputed_count = 0;
+                    if (g_task_mgr.mode == TASK_MODE_STAGE2 && g_ctrl.is_bomb_path) {
+                        g_ctrl.current_box_id = -1;
+                        g_ctrl.current_bomb_id = -1;
+                        g_ctrl.is_bomb_path = 0;
+                        g_task_mgr.action_total = 0;
+                        g_task_mgr.action_index = 0;
+                        g_task_mgr.state = TASK_STATE_RECOGNIZE_DEST;
+                        start_next_recognition();
+                        break;
                     }
-                }
-                need_map_update = 1;
-                g_ctrl.precomputed_count = 0;
-                if (g_task_mgr.mode == TASK_MODE_STAGE2 && g_ctrl.is_bomb_path) {
                     g_ctrl.current_box_id = -1;
                     g_ctrl.current_bomb_id = -1;
                     g_ctrl.is_bomb_path = 0;
                     g_task_mgr.action_total = 0;
                     g_task_mgr.action_index = 0;
-                    g_task_mgr.state = TASK_STATE_RECOGNIZE_DEST;
-                    start_next_recognition();
+                    g_task_mgr.state = TASK_STATE_WAIT_MAP;
                     break;
                 }
-                g_ctrl.current_box_id = -1;
-                g_ctrl.current_bomb_id = -1;
-                g_ctrl.is_bomb_path = 0;
+
+                // 段间请求真实地图纠正
+                g_ctrl.precomputed_count = 0;
                 g_task_mgr.action_total = 0;
                 g_task_mgr.action_index = 0;
+                g_task_mgr.last_push_end_idx = 0;
+                need_map_update = 1;
                 g_task_mgr.state = TASK_STATE_WAIT_MAP;
+                wireless_uart_send_string("[TaskMgr] Segment done, requesting map...\r\n");
                 break;
             }
 

@@ -1,35 +1,54 @@
 Build started: Project: rt1064
 *** Using Compiler 'V6.19', folder: 'E:\Keil_v5\ARM\ARMCLANG\Bin'
 Build target 'nor_sdram_zf_dtcm'
-../user/src/main.c(276): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
-    ctrl_thread = rt_thread_create("control", control_thread_entry, NULL,
-    ^~~~~~~~~~~
-    uart_thread
-../user/src/main.c(264): note: 'uart_thread' declared here
-    rt_thread_t uart_thread = rt_thread_create("uart_parse",
-                ^
-../user/src/main.c(278): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
-    if (ctrl_thread) {
-        ^~~~~~~~~~~
-        uart_thread
-../user/src/main.c(264): note: 'uart_thread' declared here
-    rt_thread_t uart_thread = rt_thread_create("uart_parse",
-                ^
-../user/src/main.c(279): error: use of undeclared identifier 'ctrl_thread'; did you mean 'uart_thread'?
-        rt_thread_startup(ctrl_thread);
-                          ^~~~~~~~~~~
-                          uart_thread
-../user/src/main.c(264): note: 'uart_thread' declared here
-    rt_thread_t uart_thread = rt_thread_create("uart_parse",
-                ^
-3 errors generated.
-compiling main.c...
-compiling uart_receiver.c...
-compiling position.c...
-compiling debug.c...
-compiling grid_map.c...
+../code/hybrid_controller.c(32): error: redeclaration of 'need_map_update' with a different type: 'volatile uint8_t' (aka 'volatile unsigned char') vs 'uint8_t' (aka 'unsigned char')
+extern volatile uint8_t need_map_update;
+                        ^
+../code/uart_receiver.h(26): note: previous declaration is here
+extern uint8_t need_map_update;
+               ^
+1 error generated.
 compiling hybrid_controller.c...
+../code/uart_receiver.c(19): error: redeclaration of 'need_map_update' with a different type: 'volatile uint8_t' (aka 'volatile unsigned char') vs 'uint8_t' (aka 'unsigned char')
+extern volatile uint8_t need_map_update;
+                        ^
+../code/uart_receiver.h(26): note: previous declaration is here
+extern uint8_t need_map_update;
+               ^
+1 error generated.
+compiling uart_receiver.c...
+../user/src/main.c(50): error: redefinition of 'need_map_update' with a different type: 'volatile uint8_t' (aka 'volatile unsigned char') vs 'uint8_t' (aka 'unsigned char')
+volatile uint8_t need_map_update = 0;
+                 ^
+../code\uart_receiver.h(26): note: previous declaration is here
+extern uint8_t need_map_update;
+               ^
+1 error generated.
+compiling main.c...
+../code/task_manager.c(21): error: redeclaration of 'need_map_update' with a different type: 'volatile uint8_t' (aka 'volatile unsigned char') vs 'uint8_t' (aka 'unsigned char')
+extern volatile uint8_t need_map_update;
+                        ^
+../code/uart_receiver.h(26): note: previous declaration is here
+extern uint8_t need_map_update;
+               ^
+1 error generated.
 compiling task_manager.c...
-".\Objects\rt1064.axf" - 3 Error(s), 0 Warning(s).
+../code/debug.c(28): error: redeclaration of 'need_map_update' with a different type: 'volatile uint8_t' (aka 'volatile unsigned char') vs 'uint8_t' (aka 'unsigned char')
+extern volatile uint8_t need_map_update;
+                        ^
+../code/uart_receiver.h(26): note: previous declaration is here
+extern uint8_t need_map_update;
+               ^
+../code/debug.c(182): warning: enumeration value 'DEBUG_GROUP_LATERAL' not handled in switch [-Wswitch]
+    switch (current_group) {
+            ^~~~~~~~~~~~~
+../code/debug.c(232): warning: enumeration value 'DEBUG_GROUP_LATERAL' not handled in switch [-Wswitch]
+    switch (current_group) {
+            ^~~~~~~~~~~~~
+2 warnings and 1 error generated.
+compiling debug.c...
+compiling position.c...
+compiling grid_map.c...
+".\Objects\rt1064.axf" - 5 Error(s), 2 Warning(s).
 Target not created.
-Build Time Elapsed:  00:00:02
+Build Time Elapsed:  00:00:03

@@ -34,8 +34,8 @@ float Kp_rot = 1.2f;
 
 // �Ƕ� PID ������
 PIDParam_t angle_pid_nav;
+PIDParam_t angle_pid_lateral;
 static PIDParam_t angle_pid_align;
-static PIDParam_t angle_pid_push;
 
 // �ڲ�״̬
 static uint8_t position_initialized = 0;
@@ -68,24 +68,24 @@ void Position_Init(void)
 void PositionPIDParamInit(void)
 {
     // λ�û� PID�����ã�
-    float kp_adjust = 2.0f, kd_adjust = 0.4f;
-    PIDInit(&pos_x_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
-    PIDInit(&pos_y_param, kp_adjust, 0, kd_adjust, SPEED_MAX, -SPEED_MAX);
+    float kp_adjust = 2.0f, ki_adjust = 0.02f, kd_adjust = 0.4f;
+    PIDInit(&pos_x_param, kp_adjust, ki_adjust, kd_adjust, SPEED_MAX, -SPEED_MAX);
+    PIDInit(&pos_y_param, kp_adjust, ki_adjust, kd_adjust, SPEED_MAX, -SPEED_MAX);
 
-    // 导航 PID
+    // 导航 PID（直行）
     float nav_kp = 1.4f;
     float nav_kd = 1.4f;
     PIDInit(&angle_pid_nav, nav_kp, 0.0f, nav_kd, 30.0f, -30.0f);
+
+    // 侧移 PID
+    float lat_kp = 1.4f;
+    float lat_kd = 1.4f;
+    PIDInit(&angle_pid_lateral, lat_kp, 0.0f, lat_kd, 30.0f, -30.0f);
 
     // 对准
     float align_kp = 1.4f;
     float align_kd = 1.4f;
     PIDInit(&angle_pid_align, align_kp, 0.0f, align_kd, 20.0f, -20.0f);
-
-    // 推动
-    float push_kp = 1.4f;
-    float push_kd = 1.4f;
-    PIDInit(&angle_pid_push, push_kp, 0.0f, push_kd, 40.0f, -40.0f);
 
     angle_trace_param = angle_pid_nav;
 }
@@ -378,7 +378,6 @@ void AnglePID_SwitchMode(int mode)
     switch (mode) {
         case 0: angle_trace_param = angle_pid_nav; break;
         case 1: angle_trace_param = angle_pid_align; break;
-        case 2: angle_trace_param = angle_pid_push; break;
         default: return;
     }
     PID_Reset(&angle_trace_param);

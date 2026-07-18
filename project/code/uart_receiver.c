@@ -5,63 +5,63 @@
 #include "position.h"
 #include "encoder.h"
 #include "task_manager.h"
-#include "motor.h"          // ÎªÁË»ñÈ¡ car_ctrl.current_vx/vy
+#include "motor.h"          // Îªï¿½Ë»ï¿½È¡ car_ctrl.current_vx/vy
 #include <string.h>
 #include <stdio.h>
 #include <rtthread.h>
 
-/* Íâ²¿È«¾Ö±äÁ¿ */
+/* ï¿½â²¿È«ï¿½Ö±ï¿½ï¿½ï¿½ */
 extern GridMap g_grid_map;
 extern GameState g_game_state;
 extern HybridController g_ctrl;
 extern Position_t position;
-extern uint8_t waiting_map;
-extern uint8_t need_map_update;
-extern CarController_t car_ctrl;   // ÓÃÓÚ»ñÈ¡µ±Ç°ËÙ¶È
+extern volatile uint8_t waiting_map;
+extern volatile uint8_t need_map_update;
+extern CarController_t car_ctrl;   // ï¿½ï¿½ï¿½Ú»ï¿½È¡ï¿½ï¿½Ç°ï¿½Ù¶ï¿½
 extern rt_mutex_t g_map_mutex;
 
-/* »·ÐÎ»º³åÇøÊµÀý */
+/* ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ */
 ring_buffer_t g_uart_rb = { .head = 0, .tail = 0 };
 
-/* µØÍ¼¸üÐÂ±êÖ¾ */
+/* ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Â±ï¿½Ö¾ */
 uint8_t g_map_updated = 0;
 
-/* ÊÓ¾õÎ»ÖÃÐ£ÕýÏà¹Ø±äÁ¿ */
-// Ô­ static uint8_t g_vision_valid = 0; ¸ÄÎªÈ«¾Ö»òÌá¹©º¯Êý
-static uint8_t g_vision_valid = 0;   // ÈÔ¿É¾²Ì¬£¬Í¨¹ýº¯Êý·ÃÎÊ
+/* ï¿½Ó¾ï¿½Î»ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½Ø±ï¿½ï¿½ï¿½ */
+// Ô­ static uint8_t g_vision_valid = 0; ï¿½ï¿½ÎªÈ«ï¿½Ö»ï¿½ï¿½á¹©ï¿½ï¿½ï¿½ï¿½
+static uint8_t g_vision_valid = 0;   // ï¿½Ô¿É¾ï¿½Ì¬ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static float g_vision_pos_x = 0.0f;
 static float g_vision_pos_y = 0.0f;
 
-// »ñÈ¡ÊÓ¾õÎ»ÖÃ
+// ï¿½ï¿½È¡ï¿½Ó¾ï¿½Î»ï¿½ï¿½
 void get_vision_position(float *x, float *y) {
     *x = g_vision_pos_x;
     *y = g_vision_pos_y;
 }
 
-// »ñÈ¡ÊÓ¾õÓÐÐ§±êÖ¾
+// ï¿½ï¿½È¡ï¿½Ó¾ï¿½ï¿½ï¿½Ð§ï¿½ï¿½Ö¾
 uint8_t is_vision_valid(void) {
     return g_vision_valid;
 }
 void clear_vision_valid(void) {
     g_vision_valid = 0;
 }
-// ÔÚ parse_map_frame ÖÐÕÒµ½ P µãÊ±£¬ÉèÖÃ g_vision_valid = 1
-// £¨´úÂëÒÑÓÐ£¬ÎÞÐèÐÞ¸Ä£¬µ«ÐèÈ·±£ g_vision_valid ÔÚÌáÈ¡µ½ P Ê±±»ÖÃ 1£©
-/* »·ÐÎ»º³åÇøÐ´ÈëÒ»¸ö×Ö½Ú£¨ÖÐ¶Ïµ÷ÓÃ£© */
+// ï¿½ï¿½ parse_map_frame ï¿½ï¿½ï¿½Òµï¿½ P ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ g_vision_valid = 1
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Þ¸Ä£ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ g_vision_valid ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ P Ê±ï¿½ï¿½ï¿½ï¿½ 1ï¿½ï¿½
+/* ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½Ð¶Ïµï¿½ï¿½Ã£ï¿½ */
 static void rb_push(uint8_t data) {
     uint16_t next = (g_uart_rb.head + 1) % UART_RX_BUF_SIZE;
     if (next != g_uart_rb.tail) {
         g_uart_rb.buffer[g_uart_rb.head] = data;
         g_uart_rb.head = next;
     } else {
-        // »º³åÇøÂú£¬¸²¸Ç×î¾ÉµÄÊý¾Ý
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éµï¿½ï¿½ï¿½ï¿½ï¿½
         g_uart_rb.tail = (g_uart_rb.tail + 1) % UART_RX_BUF_SIZE;
         g_uart_rb.buffer[g_uart_rb.head] = data;
         g_uart_rb.head = next;
     }
 }
 
-/* ´Ó»·ÐÎ»º³åÇø¶ÁÈ¡Ò»¸ö×Ö½Ú£¨Ïß³Ìµ÷ÓÃ£© */
+/* ï¿½Ó»ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡Ò»ï¿½ï¿½ï¿½Ö½Ú£ï¿½ï¿½ß³Ìµï¿½ï¿½Ã£ï¿½ */
 static uint8_t rb_pop(uint8_t *data) {
     if (g_uart_rb.head == g_uart_rb.tail) return 0;
     *data = g_uart_rb.buffer[g_uart_rb.tail];
@@ -69,7 +69,7 @@ static uint8_t rb_pop(uint8_t *data) {
     return 1;
 }
 
-/* ========== UART1 ÖÐ¶Ï»Øµ÷£¨ÔÚ isr.c ÖÐµ÷ÓÃ£© ========== */
+/* ========== UART1 ï¿½Ð¶Ï»Øµï¿½ï¿½ï¿½ï¿½ï¿½ isr.c ï¿½Ðµï¿½ï¿½Ã£ï¿½ ========== */
 void uart1_rx_callback(void) {
     uint8_t data;
     while (uart_query_byte(UART_1, &data)) {
@@ -77,7 +77,7 @@ void uart1_rx_callback(void) {
     }
 }
 
-/* ³õÊ¼»¯ UART1 ¼°»·ÐÎ»º³åÇøÖÐ¶Ï */
+/* ï¿½ï¿½Ê¼ï¿½ï¿½ UART1 ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ */
 void uart_receive_init(void) {
     uart_init(UART_1, 115200, UART1_TX_B12, UART1_RX_B13);
     uart_rx_interrupt(UART_1, 1);
@@ -85,15 +85,15 @@ void uart_receive_init(void) {
 }
 
 
-/* ========== ½âÎöµØÍ¼Ö¡£¨ÀàÐÍ 0x01£© ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 0x01ï¿½ï¿½ ========== */
 static void parse_map_frame(const uint8_t *data, uint32_t len) {
     if (len != 192) {
         wireless_uart_send_string("Map frame data length error!\r\n");
         return;
     }
 
-    // ½«Ô­Ê¼µØÍ¼Êý¾Ý×ª»»ÎªÎÄ±¾£¨12ÐÐ£¬Ã¿ÐÐ16¸ö×Ö·û + »»ÐÐ·û£©
-    char map_text[12 * 17 + 1];  // Ã¿ÐÐ16×Ö·û+»»ÐÐ£¬Ä©Î²'\0'
+    // ï¿½ï¿½Ô­Ê¼ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½Îªï¿½Ä±ï¿½ï¿½ï¿½12ï¿½Ð£ï¿½Ã¿ï¿½ï¿½16ï¿½ï¿½ï¿½Ö·ï¿½ + ï¿½ï¿½ï¿½Ð·ï¿½ï¿½ï¿½
+    char map_text[12 * 17 + 1];  // Ã¿ï¿½ï¿½16ï¿½Ö·ï¿½+ï¿½ï¿½ï¿½Ð£ï¿½Ä©Î²'\0'
     int idx = 0;
     for (int r = 0; r < 12; r++) {
         memcpy(map_text + idx, data + r * 16, 16);
@@ -106,11 +106,11 @@ static void parse_map_frame(const uint8_t *data, uint32_t len) {
     wireless_uart_send_string(map_text);
     wireless_uart_send_string("\r\n");
 
-    // ´ÓµØÍ¼ÎÄ±¾ÌáÈ¡Ð¡³µÎ»ÖÃ£¨ÊÓ¾õÐ£ÕýÓÃ£©£¬Ö»´¦ÀíµÚÒ»¸öÕÒµ½µÄ
+    // ï¿½Óµï¿½Í¼ï¿½Ä±ï¿½ï¿½ï¿½È¡Ð¡ï¿½ï¿½Î»ï¿½Ã£ï¿½ï¿½Ó¾ï¿½Ð£ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½
     int found_p = 0;
     for (int r = 0; r < 12; r++) {
         for (int c = 0; c < 16; c++) {
-            if (map_text[r * 17 + c] == 'P') {  // Ã¿ÐÐÊµ¼ÊÕ¼17×Ö½Ú£¨16×Ö·û+»»ÐÐ£©
+            if (map_text[r * 17 + c] == 'P') {  // Ã¿ï¿½ï¿½Êµï¿½ï¿½Õ¼17ï¿½Ö½Ú£ï¿½16ï¿½Ö·ï¿½+ï¿½ï¿½ï¿½Ð£ï¿½
                 float img_x = (c + 0.5f) * CELL_SIZE;
                 float img_y = (r + 0.5f) * CELL_SIZE;
                 g_vision_pos_x = img_x;
@@ -130,7 +130,7 @@ static void parse_map_frame(const uint8_t *data, uint32_t len) {
         if (found_p) break;
     }
 
-    // ÔÚ»¥³âËø±£»¤ÏÂ¼ÓÔØµØÍ¼¡¢Ë¢ÐÂ¡¢·ÖÅäÏä×Ó
+    // ï¿½Ú»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½Øµï¿½Í¼ï¿½ï¿½Ë¢ï¿½Â¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     if (g_map_mutex) {
         rt_mutex_take(g_map_mutex, RT_WAITING_FOREVER);
     }
@@ -143,7 +143,7 @@ static void parse_map_frame(const uint8_t *data, uint32_t len) {
         rt_mutex_release(g_map_mutex);
     }
 
-    // µ÷ÊÔ´òÓ¡Ïä×Ó×ø±ê£¨½ö²âÊÔÓÃ£©
+    // ï¿½ï¿½ï¿½Ô´ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½
     char dbg[128];
     for (int i = 0; i < g_game_state.num_boxes; i++) {
         rt_sprintf(dbg, "Box %d motion: (%d,%d)\r\n", i,
@@ -151,19 +151,19 @@ static void parse_map_frame(const uint8_t *data, uint32_t len) {
         wireless_uart_send_string(dbg);
     }
 
-    // waiting_map ÇåÁãºÍ MAP_READY ÊÂ¼þÓÉ main.c ¿ØÖÆÑ­»·Í³Ò»´¦Àí
+    // waiting_map ï¿½ï¿½ï¿½ï¿½ï¿½ MAP_READY ï¿½Â¼ï¿½ï¿½ï¿½ main.c ï¿½ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½Í³Ò»ï¿½ï¿½ï¿½ï¿½
 }
 
 
-/* ========== ÊÓ¾õÐ£Õý£¨ÓÉÖ÷Ñ­»·µ÷ÓÃ£© ========== */
+/* ========== ï¿½Ó¾ï¿½Ð£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ ========== */
 /*void try_vision_reset(void) {
-    // ±ØÐëÍ¬Ê±Âú×ã£ºÔÊÐíÐ£Õý && ÓÐÓÐÐ§ÊÓ¾õÎ»ÖÃ
+    // ï¿½ï¿½ï¿½ï¿½Í¬Ê±ï¿½ï¿½ï¿½ã£ºï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ && ï¿½ï¿½ï¿½ï¿½Ð§ï¿½Ó¾ï¿½Î»ï¿½ï¿½
     if (!g_allow_vision_reset || !g_vision_valid) return;
 
-    // ¿ØÖÆÆ÷ÔÚ·Ç¿ÕÏÐÄ£Ê½Ê±½ûÖ¹Ð£Õý
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú·Ç¿ï¿½ï¿½ï¿½Ä£Ê½Ê±ï¿½ï¿½Ö¹Ð£ï¿½ï¿½
     if (g_ctrl.mode != CTRL_MODE_IDLE) return;
 
-    // ÒªÇó¾²Ö¹£ºÁ¬Ðø5´Î¼ì²âËÙ¶È<0.02m/s
+    // Òªï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½5ï¿½Î¼ï¿½ï¿½ï¿½Ù¶ï¿½<0.02m/s
     static uint8_t still_count = 0;
     float speed = sqrtf(car_ctrl.current_vx * car_ctrl.current_vx + 
                         car_ctrl.current_vy * car_ctrl.current_vy);
@@ -175,21 +175,21 @@ static void parse_map_frame(const uint8_t *data, uint32_t len) {
     if (still_count < 5) return;
     still_count = 0;
 
-    // Ö´ÐÐÐ£Õý£¨Position_Set ÄÚ²¿»áÖØÖÃÎ»ÒÆµÍÍ¨ÂË²¨Æ÷£©
+    // Ö´ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½Position_Set ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½Æµï¿½Í¨ï¿½Ë²ï¿½ï¿½ï¿½ï¿½ï¿½
     Position_Set(g_vision_pos_x, g_vision_pos_y, position.yaw_rad);
     EncoderReset();
 
     g_allow_vision_reset = 0;
     g_vision_valid = 0;
 
-    // ´òÓ¡Ð£ÕýºóµÄÎ»ÖÃ
+    // ï¿½ï¿½Ó¡Ð£ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½
     char buf[64];
     int pos_x_mm = (int)(g_vision_pos_x * 1000.0f);
     int pos_y_mm = (int)(g_vision_pos_y * 1000.0f);
     rt_sprintf(buf, "[Vision] Reset to (%d, %d)\r\n", pos_x_mm, pos_y_mm);
     wireless_uart_send_string(buf);
 }*/
-/* ========== Ö¡½âÎöÆ÷ ========== */
+/* ========== Ö¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 static uint32_t try_parse_frame(uint8_t *buf, uint16_t buf_len) {
     if (buf_len < 5) return 0;
     uint16_t magic;
@@ -201,7 +201,7 @@ static uint32_t try_parse_frame(uint8_t *buf, uint16_t buf_len) {
     uint16_t data_len;
     memcpy(&data_len, buf + 3, 2);
 
-    // ½ö´¦ÀíµØÍ¼Ö¡
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼Ö¡
     if (type == 0x01 && data_len == 192) {
         uint32_t expected_len = 5 + data_len;
         if (buf_len >= expected_len) {
@@ -210,11 +210,11 @@ static uint32_t try_parse_frame(uint8_t *buf, uint16_t buf_len) {
             return expected_len;
         }
     }
-    // ÆäËûÀàÐÍÖ¡ÔÝ²»´¦Àí
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¡ï¿½Ý²ï¿½ï¿½ï¿½ï¿½ï¿½
     return 0;
 }
 
-/* ========== ½âÎöÏß³ÌÈë¿Úº¯Êý ========== */
+/* ========== ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½Úºï¿½ï¿½ï¿½ ========== */
 void parse_uart_data_thread_entry(void *parameter) {
     static uint8_t parse_buf[PARSE_BUF_SIZE] __attribute__((aligned(4)));
     uint16_t parse_len = 0;
@@ -229,7 +229,7 @@ void parse_uart_data_thread_entry(void *parameter) {
                 continue;
             }
 
-            // ÔÚ»º³åÇøÖÐ²éÕÒÖ¡Í· 0xAA55
+            // ï¿½Ú»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð²ï¿½ï¿½ï¿½Ö¡Í· 0xAA55
             for (uint16_t i = 0; i + 1 < parse_len; i++) {
                 uint16_t magic;
                 memcpy(&magic, parse_buf + i, 2);
