@@ -625,6 +625,8 @@ static void task_state_machine(void) {
             g_ctrl.push_smoothed_speed = 0.0f;
             g_ctrl.axial_tracking = 0;
             PID_Reset(&angle_trace_param);
+            PID_Reset(&pos_x_param);
+            PID_Reset(&pos_y_param);
             g_ctrl.mode = CTRL_MODE_PATH_FOLLOWING;
             wireless_uart_send_string("[TaskMgr] Moving out of garage...\r\n");
             break;

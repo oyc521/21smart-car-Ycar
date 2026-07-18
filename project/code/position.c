@@ -68,7 +68,7 @@ void Position_Init(void)
 void PositionPIDParamInit(void)
 {
     // λ�û� PID�����ã�
-    float kp_adjust = 2.0f, ki_adjust = 0.02f, kd_adjust = 0.4f;
+    float kp_adjust = 2.0f, ki_adjust = 0.04f, kd_adjust = 0.4f;
     PIDInit(&pos_x_param, kp_adjust, ki_adjust, kd_adjust, SPEED_MAX, -SPEED_MAX);
     PIDInit(&pos_y_param, kp_adjust, ki_adjust, kd_adjust, SPEED_MAX, -SPEED_MAX);
 

@@ -93,7 +93,7 @@ static const DebugChannel_t group_tracking[DEBUG_CHANNEL_COUNT] = {
     { "MAX_LOOKAHD",    &g_ctrl.max_lookahead,              0.50f,  0.10f, 1.00f },
     { "POS_KP",         &pos_x_param.kp,                    2.0f,   0.0f,  10.0f  },
     { "POS_KD",         &pos_x_param.kd,                    0.8f,   0.0f,  5.0f   },
-    { "POS_KI",         &pos_x_param.ki,                    0.02f,  0.0f,  0.5f   },
+    { "POS_KI",         &pos_x_param.ki,                    0.04f,  0.0f,  0.5f   },
     { NULL,             NULL,                               0.0f,   0.0f,  0.0f   },
 };
 
@@ -400,6 +400,8 @@ static void test_square(float side)
         wireless_uart_send_string("[SQUARE] Invalid side length.\r\n");
         return;
     }
+
+    g_ctrl.path_tolerance = 0.03f;
 
     float start_x = position.x_m;
     float start_y = position.y_m;

@@ -9,7 +9,7 @@
  *
  * ������ϣ���������ߺ��򣨳�ͷ�Զ�����·�����򣩣���Ҫ��
  *   1. �� PlanSokoban / PlanBomb �н� ctrl->use_tangent_heading ��Ϊ 1
- *   2. �� follow_path �����ߺ����֧�У��Լ������Ŀ��Ƕ�ȡ������һ����?
+ *   2. �� follow_path �����ߺ����֧�У��Լ������Ŀ��Ƕ�ȡ������һ����??
  *         target_yaw_deg = atan2f(dy, dx) * 180.0f / M_PI;
  *         target_yaw_deg = -target_yaw_deg;   // ȡ�����������������嵼�£�
  *         while (target_yaw_deg > 180.0f) target_yaw_deg -= 360.0f;
@@ -125,7 +125,7 @@ static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
     return 1;
 }
 
-/* ʶ��վλ���ң��������? */
+/* ʶ��վλ���ң��������?? */
 /*
  * ʶ��վλ���˲��Ե���˵����
  * 
@@ -133,16 +133,16 @@ static int find_bomb_stance_by_dir(GridMap* map, float bomb_x, float bomb_y,
  *    ȷ����Ŀ�걣���㹻���룬������Ұ���ޡ�
  * 
  * 2. ���ڷ�����
- *    - ��OpenArt��Ұ�����޻�ʶ��ʧ���ʸߣ����ʵ������ֵ����?0.12��0.15m����
+ *    - ��OpenArt��Ұ�����޻�ʶ��ʧ���ʸߣ����ʵ������ֵ����??0.12��0.15m����
  *    - ���򳡵���խ����ĳЩ�����޷��ҵ���ȫվλ�����ʵ���С��ֵ����0.08m����
  *    - �޸ĺ���۲촮�������ȷ��վλ�Ƿ����ڿ��������ڡ�
  * 
- * 3. ��վλ��ȫ���?
+ * 3. ��վλ��ȫ���??
  *    - ��������֤���˺���վλ���ڵ�ϸ����4x4���Ƿ���ȫ���У�
- *      ����ǽ�ڻ�����ռ��������÷��򣬳�����һ�����ڷ���?
- *    - �����з���������㣬��������?0������ʶ��ʧ���������̡�
+ *      ����ǽ�ڻ�����ռ��������÷��򣬳�����һ�����ڷ���??
+ *    - �����з���������㣬��������??0������ʶ��ʧ���������̡�
  * 
- * 4. ����Ƕ�? yaw_table ����ʵ�� AHRS 0�� �����壬
+ * 4. ����Ƕ�?? yaw_table ����ʵ�� AHRS 0�� �����壬
  *    ��ǰ�趨��0��Ϊ�ң�Y����Ϊ������Ӧ�Ƕ� {90��, 0��, -90��, 180��}��
  *    ������ʶ��ʱ��ͷ�����������˴��Ƕ�ӳ�䡣
  */
@@ -230,7 +230,7 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
         obj_y = state->bombs[obj_id].y;
     }
 
-    /* ���ӣ���ʱ�������ϸ����? */
+    /* ���ӣ���ʱ�������ϸ����?? */
     uint8_t saved[4][4] = {0};
     int saved_flag = 0;
     if (obj_type == OBJ_BOX) {
@@ -259,11 +259,11 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
     float best_x = 0, best_y = 0;
     int best_actions[200];
 
-    /* ���峬ʱ���? */
+    /* ���峬ʱ���?? */
     uint32_t eval_start_tick = rt_tick_get();
 
     for (int d = 0; d < 4; d++) {
-        /* --- ��ʱ���������� 300ms �����ʣ�෽��? --- */
+        /* --- ��ʱ���������� 300ms �����ʣ�෽��?? --- */
         if (rt_tick_get() - eval_start_tick > 300) {
             wireless_uart_send_string("[Eval] timeout, skip remaining directions\r\n");
             break;
@@ -311,7 +311,7 @@ int EvaluateBestStance(GameState* state, GridMap* grid_map,
             }
         }
 
-        /* --- ��������������·�������ķ������?150���� --- */
+        /* --- ��������������·�������ķ������??150���� --- */
         if (test_cnt > 150) {
             char buf[64];
             rt_sprintf(buf, "[Eval] dir %d ignored, steps=%d\r\n", d, test_cnt);
@@ -462,7 +462,7 @@ static int bfs_plan_path(HybridController* ctrl,
 }
 #endif
 
-/* ========== �����������������? ========== */
+/* ========== �����������������?? ========== */
 int HybridController_PlanPathToPoint(HybridController* ctrl,
                                      float start_x, float start_y,
                                      float target_x, float target_y) {
@@ -492,7 +492,7 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
                               path_x, path_y, MAX_PATH_POINTS, &params);
     if (len <= 0) return 0;
 
-    // ��̬���飬��ռ��ջ�ռ䣬����ջ���?
+    // ��̬���飬��ռ��ջ�ռ䣬����ջ���??
     static int snapped_x[MAX_PATH_POINTS];
     static int snapped_y[MAX_PATH_POINTS];
     int snap_len = 0;
@@ -546,7 +546,7 @@ int HybridController_PlanPathToPoint(HybridController* ctrl,
         straighten_x = path_x; straighten_y = path_y; out_len = len;
     }
 
-    // �����񼶱���ֱ��ɾ�������ת�۵㣨ͨ��? 4x4 ���߼����ֱ�������м�㣩
+    // �����񼶱���ֱ��ɾ�������ת�۵㣨ͨ��?? 4x4 ���߼����ֱ�������м�㣩
     #define MAX_COARSE_STEPS 8
     if (out_len > 2) {
         int kept_x[MAX_PATH_POINTS], kept_y[MAX_PATH_POINTS];
@@ -641,7 +641,7 @@ int HybridController_PlanPushPath(HybridController* ctrl,
         float target_x = cur_x + dx;
         float target_y = cur_y + dy;
 
-        // ϸ��ֵ���� PUSH_INTERP_STEP ���������м��?
+        // ϸ��ֵ���� PUSH_INTERP_STEP ���������м��??
         float seg_len = CELL_SIZE;  // 0.2m
         int steps = (int)(seg_len / PUSH_INTERP_STEP);
         if (steps < 1) steps = 1;
@@ -656,7 +656,7 @@ int HybridController_PlanPushPath(HybridController* ctrl,
             ctrl->current_path[pt][1] = cur_y;
             pt++;
         }
-        // �����ۻ���ǿ�ƶ��뵽Ŀ����������?
+        // �����ۻ���ǿ�ƶ��뵽Ŀ����������??
         cur_x = target_x;
         cur_y = target_y;
     }
@@ -691,7 +691,7 @@ int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
     const int dc[4] = {0, 1, 0, -1};
     const int opposite[4] = {2, 3, 0, 1};
 
-    // �����ƶ�����ĶԲ�?
+    // �����ƶ�����ĶԲ�??
     if (preferred_dir >= 0 && preferred_dir < 4) {
         int back_dir = opposite[preferred_dir];
         int nr = box_r + dr[back_dir];
@@ -716,7 +716,7 @@ int find_coarse_adjacent_target(GameState* state, GridMap* grid_map,
     return 0;
 }
 
-/* ========== ·�����٣������ٶ�ƽ��&�ɰ濨�����? ========== */
+/* ========== ·�����٣������ٶ�ƽ��&�ɰ濨�����?? ========== */
 static int find_nearest_point_on_path(const float path[][2], int len, float x, float y, float* min_dist) {
     int idx = 0;
     *min_dist = 1e9f;
@@ -757,7 +757,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     float current_yaw = position.yaw_rad * RAD_TO_DEG;
 
-    /* ���·������? */
+    /* ���·������?? */
     float min_dist;
     int nearest = find_nearest_point_on_path(ctrl->current_path, ctrl->path_len, car_x, car_y, &min_dist);
     *dist_to_end = sqrtf(powf(ctrl->current_path[ctrl->path_len-1][0] - car_x, 2) +
@@ -797,14 +797,46 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
 
     *vx = vx_global;
     *vy = vy_global;
-    //�յ�20cm����λ�û�
+    //�յ�20cm����λ�û�
     uint8_t in_pid = 0;
-    if (*dist_to_end < 0.20f) {
-        float end_x = ctrl->current_path[ctrl->path_len-1][0];
-        float end_y = ctrl->current_path[ctrl->path_len-1][1];
-        *vx = PID_AntiWindup(&pos_x_param, 0, end_x - car_x);
-        *vy = PID_AntiWindup(&pos_y_param, 0, end_y - car_y);
-        float limit = ctrl->max_speed * 0.3f;
+    if (dist_err < 0.08f) {
+        float limit = ctrl->max_speed;
+        pos_x_param.output_max =  limit;
+        pos_x_param.output_min = -limit;
+        pos_y_param.output_max =  limit;
+        pos_y_param.output_min = -limit;
+        uint8_t is_end = (*dist_to_end < 0.30f);
+        float saved_ki_x = pos_x_param.ki;
+        float saved_ki_y = pos_y_param.ki;
+        if (!is_end) {
+            pos_x_param.ki = 0.0f;
+            pos_y_param.ki = 0.0f;
+            pos_x_param.error_sum_max = 1.0f;
+            pos_x_param.error_sum_min = -1.0f;
+            pos_y_param.error_sum_max = 1.0f;
+            pos_y_param.error_sum_min = -1.0f;
+        } else {
+            pos_x_param.error_sum_max =  limit / pos_x_param.ki;
+            pos_x_param.error_sum_min = -limit / pos_x_param.ki;
+            pos_y_param.error_sum_max =  limit / pos_y_param.ki;
+            pos_y_param.error_sum_min = -limit / pos_y_param.ki;
+        }
+        *vx = PID_AntiWindup(&pos_x_param, 0, dx);
+        *vy = PID_AntiWindup(&pos_y_param, 0, dy);
+        {
+            static uint8_t dbg_once = 0;
+            if (dbg_once < 5) {
+                char buf[64];
+                rt_sprintf(buf, "[PID] e=%d i=%d/%d vx=%d err=%d ki=%d\r\n",
+                           is_end, ctrl->path_target_idx, ctrl->path_len,
+                           (int)(*vx * 1000), (int)(dx * 1000),
+                           (int)(pos_x_param.ki * 100));
+                wireless_uart_send_string(buf);
+                dbg_once++;
+            }
+        }
+        pos_x_param.ki = saved_ki_x;
+        pos_y_param.ki = saved_ki_y;
         if (*vx > limit) *vx = limit;
         else if (*vx < -limit) *vx = -limit;
         if (*vy > limit) *vy = limit;
@@ -850,7 +882,7 @@ int follow_path(HybridController* ctrl, float car_x, float car_y, float car_angl
     return 1;
 }
 
-/* ������⣨�ƶ���������? */
+/* ������⣨�ƶ���������?? */
 static void check_path_stuck(HybridController* ctrl, float car_x, float car_y, float car_angle) {
     if (ctrl->path_purpose == PATH_PURPOSE_PUSH_STANCE)
         return;
@@ -979,7 +1011,7 @@ void HybridController_ComputeControl(HybridController* ctrl,
                 ctrl->mode = CTRL_MODE_IDLE;
                 break;
             }
-            // �������?
+            // �������??
             check_path_stuck(ctrl, car_x, car_y, car_angle);
 
             float dist_to_end;
