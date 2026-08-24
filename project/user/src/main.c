@@ -1,17 +1,28 @@
 /**
- * ÏµÍ³ï¿½æ±¾ï¿½ï¿½v5.7.0
- * ï¿½ï¿½Òªï¿½ï¿½ï¿½Ô£ï¿½
- * - Ö§ï¿½ï¿½È«ï¿½Öµï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð£ï¿½1ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ï¿½ï£©ï¿½ï¿½ï¿½á¹©È«ï¿½ï¿½Í¼Æ½ï¿½ï¿½Â·ï¿½ï¿½ï¿½æ»®
- * - Ö§ï¿½ï¿½Ç°ï¿½ï¿½Ô¤ï¿½ï¿½ï¿½ï¿½×ªï¿½ò²¹³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½Â·ï¿½ï¿½ + Ç°ï¿½ï¿½PIDÆ¯ï¿½Æ²ï¿½ï¿½ï¿½
- * - Ö§ï¿½ï¿½Õ¨ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½Õ¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó³ï¿½ä´¦ï¿½ï¿½ï¿½ï¿½start_push_bomb ï¿½ï¿½ï¿½ï¿½ 0~3 ï¿½ï¿½Ê¾Õ¨ï¿½ï¿½Î»ï¿½Ã£ï¿½
- * - Ö§ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½È·ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½Ö²ï¿½ï¿½ï¿½ï¿½ï¿½Ïµ×ªï¿½ï¿½Í³Ò»
- * - Í³Ò»ï¿½ï¿½ï¿½ï¿½Ó³ï¿½ä£ºÍ¨ï¿½ï¿½ g_digit_map Êµï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½Í³Ò»×ªï¿½ï¿½
- * - Í¼ï¿½ï¿½ï¿½ï¿½ï¿½É£ï¿½main.c ï¿½ï¿½Í¨ï¿½ï¿½ TASK_EVENT_MAP_READY ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
- * - Ö§ï¿½ï¿½Î»ï¿½Ã¶ï¿½Î»ï¿½ï¿½ï¿½á¹©ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½Ï¸ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½ï¿½
- * - key4ï¿½ï¿½Éµï¿½Ò»ï¿½Øºï¿½Ø¿ï¿½ï¿½Ô¶ï¿½ï¿½Ð»ï¿½ï¿½Ú¶ï¿½ï¿½ï¿½
- * - PID ï¿½ï¿½ï¿½Ô£ï¿½Ö§ï¿½ï¿½ï¿½Ù¶ï¿½/Î»ï¿½ï¿½/ï¿½ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½Ç¶ï¿½ï¿½Ä£Ê½ï¿½Ð»ï¿½
- * - ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½Í¨ï¿½ï¿½ MAP_READY ï¿½Â¼ï¿½Ö´ï¿½Ð³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½È´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @file main.c
+ * @brief ÖÇÄÜ³µÈ«ÏòÒÆ¶¯¿ØÖÆÏµÍ³Ö÷³ÌÐò
+ * 
+ * @note ¿ªÔ´ÉùÃ÷
+ * ============================================================================
+ * ±¾ÏîÄ¿»ùÓÚ¡¾Öð·É¿Æ¼¼ RT1064 ¿ªÔ´¿â¡¿½øÐÐ¶þ´Î¿ª·¢¡£
+ * µ×²ãÐ¾Æ¬Çý¶¯¿â£¨°üÀ¨µ«²»ÏÞÓÚ UART¡¢PWM¡¢ENCODER¡¢IMU µÈÍâÉèÇý¶¯£©
+ * ÓÉ¡¾Öð·É¿Æ¼¼¡¿¿ªÔ´Ìá¹©£¬ÔÚ´Ë±íÊ¾¸ÐÐ»¡£
+ * 
+ * Öð·É¿Æ¼¼¿ªÔ´¿â²Ö¿âµØÖ·£ºhttps://github.com/seekfree/seekfree_library
+ * 
+ * ±¾ÏîÄ¿£¨ÖÇÄÜ³µÈ«ÏòÒÆ¶¯¿ØÖÆÏµÍ³£©ÔÚÔ­¿â»ù´¡ÉÏÐÂÔö/ÐÞ¸ÄµÄÄÚÈÝ°üÀ¨£º
+ * - »ìºÏ¿ØÖÆÆ÷£¨Hybrid Controller£©
+ * - A* Â·¾¶¹æ»®Æ÷ + Â·¾¶³éÏ¡Ëã·¨
+ * - Sokoban ÍÆÏä×Ó / Õ¨µ¯±¬ÆÆÇ½¹æ»®Æ÷
+ * - ÈÎÎñ¹ÜÀíÆ÷£¨Task Manager£©×´Ì¬»ú
+ * - IMU/Àï³Ì¼Æ»¥²¹ÂË²¨ÈÚºÏ¶¨Î»
+ * - UART Í¨ÐÅÐ­Òé½âÎö
+ * - ÈýÂÖÈ«Ïòµ×ÅÌÔË¶¯Ñ§½¨Ä£
+ * 
+ * ±¾ÏîÄ¿×ñÑ­Öð·É¿Æ¼¼¿ªÔ´¿âµÄÔ­Ê¼Ðí¿ÉÖ¤½øÐÐ¿ªÔ´¡£
+ * ============================================================================
  */
+
 #include <rtthread.h>
 #include <math.h>
 #include "imu660ra_ahrs.h"
@@ -32,47 +43,55 @@
 #include "uart4_recognition.h"
 #include "debug.h"
 
-// ========== ï¿½ï¿½ï¿½Å¶ï¿½ï¿½ï¿½ ==========
-#define KEY_START_PIN       C12
-#define LED_CONFIRM_PIN     B9
-#define MAP_REQ_INTERVAL_MS   200
-#define MAP_REQ_MAX_ATTEMPTS  25
-#define BEEP_PIN            B11
+// ========== Ó²¼þÒý½ÅÓë²ÎÊý¶¨Òå ==========
+#define KEY_START_PIN       C12        // Æô¶¯°´¼ü£¨KEY4/KEY3¹²ÓÃ´Ë¶¨Òå£¿Êµ¼Ê´úÂëÖÐ·Ö±ð¼ì²âKEY_4ºÍKEY_3£¬´Ë´¦ÎªÀúÊ·ÒÅÁô£©
+#define LED_CONFIRM_PIN     B9         // È·ÈÏÖ¸Ê¾µÆ£¨LED£©
+#define MAP_REQ_INTERVAL_MS   200      // µØÍ¼ÇëÇó¼ä¸ô£¨ºÁÃë£©
+#define MAP_REQ_MAX_ATTEMPTS  25       // µØÍ¼ÇëÇó×î´óÖØÊÔ´ÎÊý
+#define BEEP_PIN            B11        // ·äÃùÆ÷Òý½Å
 
-// ========== È«ï¿½Ö±ï¿½ï¿½ï¿½ ==========
-GridMap g_grid_map;
-GameState g_game_state;
-HybridController g_ctrl;
-uint8_t system_started = 0;
-uint8_t yaw_initialized = 0;
-static uint32_t last_map_req_tick = 0;
-volatile uint8_t waiting_map = 0;
-volatile uint8_t need_map_update = 0;
-static uint8_t map_req_attempts = 0;
+// ========== È«¾Ö±äÁ¿ ==========
+GridMap g_grid_map;                     // È«¾ÖÕ¤¸ñµØÍ¼
+GameState g_game_state;                 // ÓÎÏ·×´Ì¬£¨ÈÎÎñ½ø¶ÈµÈ£©
+HybridController g_ctrl;               // »ìºÏ¿ØÖÆÆ÷ÊµÀý
+uint8_t system_started = 0;            // ÏµÍ³Æô¶¯±êÖ¾£¨°´¼ü´¥·¢ºóÖÃ1£©
+uint8_t yaw_initialized = 0;           // º½Ïò½ÇÊÇ·ñÒÑ³õÊ¼»¯£¨Ëø¶¨£©
+static uint32_t last_map_req_tick = 0; // ÉÏ´Î·¢ËÍµØÍ¼ÇëÇóµÄÊ±¿Ì£¨tick£©
+volatile uint8_t waiting_map = 0;      // ÊÇ·ñÕýÔÚµÈ´ýµØÍ¼ÏìÓ¦
+volatile uint8_t need_map_update = 0;  // ÊÇ·ñÐèÒªÖ÷¶¯ÇëÇó¸üÐÂµØÍ¼
+static uint8_t map_req_attempts = 0;   // µ±Ç°µØÍ¼ÇëÇó³¢ÊÔ´ÎÊý
 
-// ÏµÍ³ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½Ä³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ç£ï¿½ï¿½Ç¶ï¿½ï¿½Æ£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î¿ï¿½ï¿½ï¿½ï¿½ï¿½
+// ÏµÍ³º½ÏòËø¶¨Öµ£¨ÓÃÓÚÎÈ¶¨ÐÐÊ»·½Ïò£©
 float g_locked_yaw = 0.0f;
 
-extern uint8_t g_map_updated;
-rt_mutex_t g_map_mutex = RT_NULL; // ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ý»ï¿½ï¿½ï¿½ï¿½ï¿½
+extern uint8_t g_map_updated;          // Íâ²¿£¨ÖÐ¶Ï/´®¿Ú½âÎö£©ÖÃÎ»£¬±íÊ¾ÐÂµØÍ¼ÒÑÊÕµ½
+rt_mutex_t g_map_mutex = RT_NULL;      // µØÍ¼Êý¾Ý»¥³âËø£¬·ÀÖ¹²¢·¢·ÃÎÊ
 
-// ========== YAW ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ==========
+// ========== YAW ²âÊÔÏà¹Ø£¨µ÷ÊÔÓÃ£© ==========
 static uint8_t yaw_test_active = 0;
 static float yaw_test_ref = 0.0f;
 
+/**
+ * @brief ³õÊ¼»¯·äÃùÆ÷Òý½Å
+ */
 static void beep_init(void)
 {
-    gpio_init(BEEP_PIN, GPO, 0, GPO_PUSH_PULL);   // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Íµï¿½Æ½
+    gpio_init(BEEP_PIN, GPO, 0, GPO_PUSH_PULL);
 }
 
+/**
+ * @brief ·äÃùÆ÷¶ÌÃùÒ»Éù£¨ÓÃÓÚÌáÊ¾²Ù×÷³É¹¦£©
+ */
 void BeepOnce(void)
 {
-    gpio_set_level(BEEP_PIN, 1);   // ï¿½ï¿½ï¿½ï¿½ßµï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    gpio_set_level(BEEP_PIN, 1);   // À­¸ß£¬·äÃùÆ÷Ïì
     rt_thread_mdelay(100);
-    gpio_set_level(BEEP_PIN, 0);   // ï¿½ï¿½ï¿½ï¿½Íµï¿½Æ½ï¿½ï¿½ï¿½Ø±Õ·ï¿½ï¿½ï¿½ï¿½ï¿½
+    gpio_set_level(BEEP_PIN, 0);   // À­µÍ£¬¹Ø±Õ
 }
 
-/* LED ï¿½ï¿½Ë¸Ò»ï¿½ï¿½ */
+/**
+ * @brief LEDÉÁË¸Ò»´Î£¨ÓÃÓÚÊÓ¾õ·´À¡£©
+ */
 static void led_blink_once(void)
 {
     gpio_set_level(LED_CONFIRM_PIN, 0);
@@ -80,13 +99,26 @@ static void led_blink_once(void)
     gpio_set_level(LED_CONFIRM_PIN, 1);
 }
 
-/* ï¿½ï¿½ OpenArt ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Âµï¿½Í¼ï¿½ï¿½Ö¸ï¿½ï¿½ */
+/**
+ * @brief Ïò OpenArtÇëÇóÐÂµØÍ¼
+ * @note Í¨¹ý´®¿Ú·¢ËÍ "MAP_REQ\n" Ö¸Áî
+ */
 void request_new_map(void)
 {
     uart_write_string(UART_1, "MAP_REQ\n");
 }
 
-/* ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½Úºï¿½ï¿½ï¿½ */
+/**
+ * @brief ¿ØÖÆÏß³ÌÖ÷Ñ­»·
+ * @param parameter Ïß³ÌÈë¿Ú²ÎÊý£¨Î´Ê¹ÓÃ£©
+ * @details ¸ÃÏß³Ì¸ºÔð£º
+ *          - ¸üÐÂ AHRS ºÍÎ»ÖÃÐÅÏ¢
+ *          - ´¦ÀíµØÍ¼ÇëÇó³¬Ê±ÖØÊÔ
+ *          - ¼ì²â°´¼üÆô¶¯²»Í¬½×¶Î
+ *          - µ÷ÓÃ»ìºÏ¿ØÖÆÆ÷¼ÆËãËÙ¶ÈÖ¸Áî
+ *          - ¸üÐÂµç»ú¿ØÖÆ
+ *          - ´òÓ¡Ä£Ê½ÇÐ»»µÈÐÅÏ¢
+ */
 static void control_thread_entry(void *parameter)
 {
     wireless_uart_send_string("Control thread started.\r\n");
@@ -96,17 +128,18 @@ static void control_thread_entry(void *parameter)
     static float last_omega_cmd = 0.0f;
 
     while (1) {
-        AHRS_Update();  
+        // ¸üÐÂ×ËÌ¬ºÍÎ»ÖÃ£¨»ùÓÚIMUºÍÀï³Ì¼Æ£©
+        AHRS_Update();
         Position_Update();
 
 #if DEBUG_ENABLE
-        debug_seekfree_loop();
+        debug_seekfree_loop();   // µ÷ÊÔ¸¨ÖúÑ­»·
 #endif
 
-        // ===== ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ =====
+        // ===== ¼ì²éÊÇ·ñÐèÒªÇëÇóµØÍ¼¸üÐÂ =====
         if (need_map_update) {
             if (g_ctrl.mode == CTRL_MODE_PATH_FOLLOWING) {
-                // Â·ï¿½ï¿½ï¿½ï¿½ï¿½Ù¹ï¿½ï¿½ï¿½ï¿½Ð²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ó£¬±ï¿½ï¿½ï¿½ï¿½ï¿½
+                // Èôµ±Ç°´¦ÓÚÂ·¾¶¸úËæÄ£Ê½£¬Ôò²»Ö÷¶¯ÇëÇó£¨±ÜÃâ¸ÉÈÅ£©
             } else {
                 need_map_update = 0;
                 waiting_map = 1;
@@ -115,45 +148,46 @@ static void control_thread_entry(void *parameter)
             }
         }
 
+        // °´¼üÉ¨Ãè£¨ÓÉµ×²ãÖÐ¶Ï»ò¶¨Ê±Æ÷¸üÐÂ×´Ì¬£©
         key_scanner();
 
-        // ï¿½ï¿½ï¿½ KEY4 ï¿½Ì°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÍ³ï¿½ï¿½Ò»ï¿½×¶ï¿½
+        // ¼ì²â KEY4 ¶Ì°´ ¡ú Æô¶¯µÚÒ»½×¶Î£¨³ö¿â£©
         if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_4);
             if (!system_started) {
                 system_started = 1;
-                task_manager_set_mode(TASK_MODE_STAGE1);   // ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½×¶ï¿½Ä£Ê½
+                task_manager_set_mode(TASK_MODE_STAGE1);   // ÇÐ»»ÈÎÎñ¹ÜÀíÆ÷µ½½×¶Î1
                 led_blink_once();
-                //BeepOnce();
+                //BeepOnce();  // ¿ÉÑ¡µÄ·äÃù·´À¡
                 wireless_uart_send_string("Stage1 started. Moving out of garage...\r\n");
                 g_task_mgr.state = TASK_STATE_MOVE_OUT;
-                rt_event_send(g_task_mgr.event, 0x80);
+                rt_event_send(g_task_mgr.event, 0x80);     // ´¥·¢ÈÎÎñ¹ÜÀíÆ÷ÊÂ¼þ
                 AHRS_ResetYaw();
-                Position_ResetYaw();               // Í¬ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½ï¿½ï¿½ï¿½
+                Position_ResetYaw();               // Í¬Ê±ÖØÖÃÎ»ÖÃÄ£¿éµÄº½Ïò
                 g_locked_yaw = AHRS_GetYaw();
                 yaw_initialized = 1;
             }
         }
 
-        // ï¿½ï¿½ï¿½ KEY3 ï¿½Ì°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÍ³ï¿½Ú¶ï¿½ï¿½×¶ï¿½
+        // ¼ì²â KEY3 ¶Ì°´ ¡ú Æô¶¯µÚ¶þ½×¶Î£¨¸´ÔÓÈÎÎñ£©
         if (key_get_state(KEY_3) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_3);
             if (!system_started) {
                 system_started = 1;
-                task_manager_set_mode(TASK_MODE_STAGE2);   // ï¿½Ð»ï¿½ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½×¶ï¿½Ä£Ê½
+                task_manager_set_mode(TASK_MODE_STAGE2);   // ÇÐ»»ÈÎÎñ¹ÜÀíÆ÷µ½½×¶Î2
                 led_blink_once();
-                BeepOnce();
+                BeepOnce();                                // ·äÃù·´À¡
                 wireless_uart_send_string("Stage2 started. Moving out of garage...\r\n");
                 g_task_mgr.state = TASK_STATE_MOVE_OUT;
                 rt_event_send(g_task_mgr.event, 0x80);
                 AHRS_ResetYaw();
-                Position_ResetYaw();               // Í¬ï¿½ï¿½ï¿½ï¿½ï¿½Ãºï¿½ï¿½ï¿½ï¿½
+                Position_ResetYaw();
                 g_locked_yaw = AHRS_GetYaw();
                 yaw_initialized = 1;
             }
         }
 
-        // ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½
+        // ´¦ÀíµØÍ¼ÇëÇó³¬Ê±ÖØ´«
         if (system_started && waiting_map) {
             uint32_t now = rt_tick_get();
             if (last_map_req_tick == 0 || (now - last_map_req_tick) >= RT_TICK_PER_SECOND * MAP_REQ_INTERVAL_MS / 1000) {
@@ -170,7 +204,7 @@ static void control_thread_entry(void *parameter)
             }
         }
 
-        // ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É´ï¿½ï¿½ï¿½
+        // ÈôÊÕµ½ÐÂµØÍ¼£¬ÔòÍ¨ÖªÈÎÎñ¹ÜÀíÆ÷
         if (waiting_map && g_map_updated) {
             g_map_updated = 0;
             waiting_map = 0;
@@ -180,15 +214,19 @@ static void control_thread_entry(void *parameter)
             rt_event_send(g_task_mgr.event, TASK_EVENT_MAP_READY);
         }
 
-        // ========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òºï¿½ï¿½ï¿½ï¿½Ñ³ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Î´ï¿½È´ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ ==========
+        // ========== Õý³£¿ØÖÆÑ­»·£¨ÏµÍ³ÒÑÆô¶¯ÇÒº½ÏòÒÑ³õÊ¼»¯ÇÒ²»´¦ÓÚµÈ´ýµØÍ¼×´Ì¬£© ==========
         else if (system_started && yaw_initialized && !waiting_map) {
             float vx_out, vy_out, omega;
             float current_time = (float)rt_tick_get() / 1000.0f;
+            // µ÷ÓÃ»ìºÏ¿ØÖÆÆ÷£¬¸ù¾Ýµ±Ç°Î»ÖÃ¡¢×ËÌ¬ºÍÄ¿±êÂ·¾¶¼ÆËãËÙ¶ÈÖ¸Áî
             HybridController_ComputeControl(&g_ctrl, position.x_m, position.y_m, position.yaw_rad,
                                             0.005f, current_time, &vx_out, &vy_out, &omega);
 
+            // ÉèÖÃµç»úËÙ¶È
             CarController_SetSpeed(vx_out, vy_out, omega);
             CarController_Update();
+
+            // µ÷ÊÔ£ºÊä³ö½ÇËÙ¶ÈÖ¸Áî±ä»¯
             if (fabsf(omega - last_omega_cmd) > 0.01f) {
                 last_omega_cmd = omega;
                 char dbg[32];
@@ -196,12 +234,12 @@ static void control_thread_entry(void *parameter)
                 wireless_uart_send_string(dbg);
             }
         } else {
-            // Î´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½Ê±Í£Ö¹Ð¡ï¿½ï¿½
+            // Î´Æô¶¯»òÎ´³õÊ¼»¯Ê±Í£Ö¹Ð¡³µ
             CarController_SetSpeed(0, 0, 0);
             CarController_Update();
         }
 
-        // ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ä»¯ï¿½ï¿½Ï¢
+        // ´òÓ¡¿ØÖÆÆ÷Ä£Ê½±ä»¯£¨µ÷ÊÔÐÅÏ¢£©
         static int last_mode = -1;
         if (g_ctrl.mode != last_mode) {
             last_mode = g_ctrl.mode;
@@ -210,51 +248,66 @@ static void control_thread_entry(void *parameter)
             wireless_uart_send_string(dbg);
         }
 
-        // Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 5ms
+        // Ñ­»·ÖÜÆÚ 5ms£¨200Hz£©
         rt_thread_mdelay(5);
     }
 }
 
+/**
+ * @brief Ö÷º¯Êý£¬ÏµÍ³³õÊ¼»¯Èë¿Ú
+ * @return ÓÀ²»·µ»Ø£¨µ÷¶ÈÆ÷Æô¶¯ºó£©
+ */
 int main(void)
 {
+    // ÏµÍ³Ê±ÖÓ³õÊ¼»¯£¨600MHz£¬¸ù¾ÝÓ²¼þÅäÖÃ£©
     clock_init(SYSTEM_CLOCK_600M);
     debug_init();
 
+    // ÎÞÏß´®¿Ú³õÊ¼»¯£¨ÓÃÓÚÓëÉÏÎ»»úÍ¨ÐÅ£©
     wireless_uart_init();
     seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIRELESS_UART);
 
-    gpio_init(LED_CONFIRM_PIN, GPO, 1, GPO_PUSH_PULL);
-    beep_init();    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    key_init(10);   // 10ms ï¿½ï¿½ï¿½ï¿½É¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    // GPIO³õÊ¼»¯
+    gpio_init(LED_CONFIRM_PIN, GPO, 1, GPO_PUSH_PULL);  // Ä¬ÈÏLED¸ßµçÆ½Ï¨Ãð
+    beep_init();    // ·äÃùÆ÷
+    key_init(10);   // °´¼üÉ¨ÃèÖÜÆÚ10ms
 
+    // µç»úÓë±àÂëÆ÷³õÊ¼»¯
     MotorInit();
     EncoderInit();
     CarController_Init();
-    MotorPID_SetGlobalParams(100.0f, 2.5f, 1.0f); // ï¿½ï¿½ï¿½Ãµï¿½ï¿½PIDï¿½ï¿½ï¿½ï¿½
+    MotorPID_SetGlobalParams(100.0f, 2.5f, 1.0f); // ÉèÖÃÈ«¾ÖPID²ÎÊý£¨±ÈÀý¡¢»ý·Ö¡¢Î¢·Ö£©
 
+    // IMUÓëÎ»ÖÃ¹À¼Æ³õÊ¼»¯
     IMU660RA_AHRS_Init();
     Position_Init();
+
+    // ÈÎÎñ¹ÜÀíÆ÷³õÊ¼»¯²¢Æô¶¯
     task_manager_init();
     task_manager_start();
 
+    // Çå¿ÕÈ«¾Ö×´Ì¬ºÍµØÍ¼Êý¾Ý
     memset(&g_game_state, 0, sizeof(g_game_state));
     memset(&g_grid_map, 0, sizeof(g_grid_map));
 
+    // ³õÊ¼»¯»ìºÏ¿ØÖÆÆ÷£¬°ó¶¨µØÍ¼ºÍ×´Ì¬
     HybridController_Init(&g_ctrl, &g_grid_map, &g_game_state);
-    g_ctrl.max_speed = 0.10f;
-    g_ctrl.path_tolerance = 0.15f;
+    g_ctrl.max_speed = 0.10f;        // ×î´óÏßËÙ¶È 0.1 m/s
+    g_ctrl.path_tolerance = 0.15f;   // Â·¾¶¸ú×ÙÈÝ²î 0.15 m
 
-    debug_module_init();
+    debug_module_init();             // µ÷ÊÔÄ£¿é³õÊ¼»¯
 
+    // ´®¿Ú½ÓÊÕ½âÎöÏß³Ì³õÊ¼»¯£¨ÓÃÓÚ´¦ÀíÉÏÎ»»úÖ¸Áî£©
     uart_receive_init();
-    uart4_recognition_init();  
+    uart4_recognition_init();        // ÌØ¶¨´®¿Ú4Ê¶±ð¹¦ÄÜ
 
-    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    // ´´½¨µØÍ¼Êý¾Ý»¥³âËø
     g_map_mutex = rt_mutex_create("map_mutex", RT_IPC_FLAG_FIFO);
     if (g_map_mutex == RT_NULL) {
         wireless_uart_send_string("Failed to create map mutex.\r\n");
     }
 
+    // ´´½¨´®¿ÚÊý¾Ý½âÎöÏß³Ì
     rt_thread_t uart_thread = rt_thread_create("uart_parse",
                                                parse_uart_data_thread_entry,
                                                RT_NULL,
@@ -264,9 +317,11 @@ int main(void)
     if (uart_thread) rt_thread_startup(uart_thread);
     else wireless_uart_send_string("Failed to create uart thread.\r\n");
 
+    // Æô¶¯ PIT ¶¨Ê±Æ÷£¨10ms ÖÜÆÚ£¬ÓÃÓÚÖÜÆÚÈÎÎñ´¥·¢£©
     pit_ms_init(PIT_CH0, 10);
-    interrupt_global_enable(0);
+    interrupt_global_enable(0);   // ¿ªÆôÈ«¾ÖÖÐ¶Ï
 
+    // ´´½¨¿ØÖÆÏß³Ì£¨ÓÅÏÈ¼¶ÖÐµÈ£¬Õ»´óÐ¡8192£©
     rt_thread_t ctrl_thread = rt_thread_create("control", control_thread_entry, NULL,
                                                8192, RT_THREAD_PRIORITY_MAX / 2, 20);
     if (ctrl_thread) {
@@ -278,7 +333,8 @@ int main(void)
 
     wireless_uart_send_string("System ready. Press KEY4 to start.\r\n");
 
+    // Æô¶¯ RT-Thread µ÷¶ÈÆ÷£¨Ö÷Ïß³Ì²»ÔÙ·µ»Ø£©
     rt_system_scheduler_start();
 
-    return 0;
+    return 0;  // ÓÀÔ¶²»»áÖ´ÐÐµ½ÕâÀï
 }
