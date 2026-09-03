@@ -137,7 +137,7 @@ void HybridController_ComputeControl(HybridController* ctrl,
                                      float dt, float current_time,
                                      float* out_vx, float* out_vy, float* out_omega);
 
-// 识别导航（保留）
+// 识别导航
 int HybridController_NavigateAndRecognize(HybridController* ctrl,
                                           int target_grid_x, int target_grid_y,
                                           RecognTargetType_t target_type,

@@ -20,6 +20,7 @@
  * - 三轮全向底盘运动学建模
  * 
  * 本项目遵循逐飞科技开源库的原始许可证进行开源。
+ * 作者：oyc521
  * ============================================================================
  */
 
@@ -44,7 +45,7 @@
 #include "debug.h"
 
 // ========== 硬件引脚与参数定义 ==========
-#define KEY_START_PIN       C12        // 启动按键（KEY4/KEY3共用此定义？实际代码中分别检测KEY_4和KEY_3，此处为历史遗留）
+#define KEY_START_PIN       C12        // 启动按键
 #define LED_CONFIRM_PIN     B9         // 确认指示灯（LED）
 #define MAP_REQ_INTERVAL_MS   200      // 地图请求间隔（毫秒）
 #define MAP_REQ_MAX_ATTEMPTS  25       // 地图请求最大重试次数
@@ -151,7 +152,7 @@ static void control_thread_entry(void *parameter)
         // 按键扫描（由底层中断或定时器更新状态）
         key_scanner();
 
-        // 检测 KEY4 短按 → 启动第一阶段（出库）
+        // 检测 KEY4 短按 → 启动第一阶段顺序闯关
         if (key_get_state(KEY_4) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_4);
             if (!system_started) {
@@ -169,7 +170,7 @@ static void control_thread_entry(void *parameter)
             }
         }
 
-        // 检测 KEY3 短按 → 启动第二阶段（复杂任务）
+        // 检测 KEY3 短按 → 直接启动第二阶段
         if (key_get_state(KEY_3) == KEY_SHORT_PRESS) {
             key_clear_state(KEY_3);
             if (!system_started) {
